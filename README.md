@@ -67,20 +67,6 @@ yarn preview
 - **전투 로그**: 실시간 게임 진행 상황 표시
 - **게임 오버 모달**: 승리/패배 결과 및 재시작 기능
 
-## 📁 프로젝트 구조
-
-```
-├── components/
-│   ├── Character.vue       # 캐릭터 컴포넌트 (HP바, 애니메이션)
-│   ├── GameBoard.vue       # 메인 게임 화면
-│   └── QuestionPanel.vue   # 문제 표시 및 선택지 패널
-├── stores/
-│   └── game.js            # Pinia 게임 상태 관리
-├── app.vue                # 메인 앱 컴포넌트
-├── nuxt.config.ts         # Nuxt 설정
-└── package.json           # 의존성 정보
-```
-
 ## 🔧 핵심 기술 구현
 
 ### Pinia 상태 관리
@@ -105,32 +91,6 @@ export const useGameStore = defineStore('game', {
 })
 ```
 
-### Vue 3 Composition API
-```vue
-<script setup>
-import { useGameStore } from '@/stores/game'
-
-const gameStore = useGameStore()
-
-const handleAnswer = (answer) => {
-  gameStore.selectAnswer(answer)
-}
-</script>
-```
-
-### Tailwind CSS (rem 단위)
-```css
-.character-hp {
-  @apply w-32 h-4 bg-gray-300 rounded-full;
-  /* width: 8rem; height: 1rem; */
-}
-
-.game-title {
-  @apply text-5xl font-bold mb-8;
-  /* font-size: 3rem; margin-bottom: 2rem; */
-}
-```
-
 ## 📊 게임 데이터
 
 현재 10개의 기본 단어가 포함되어 있습니다:
@@ -143,63 +103,7 @@ const handleAnswer = (answer) => {
 | 물 | water | fire, earth |
 | 집 | house | car, tree |
 
-## 🎮 게임 플로우
-
-1. **게임 시작** → "🎮 게임 시작!" 버튼 클릭
-2. **문제 출제** → 한글 단어가 화면 상단에 표시
-3. **선택지 제시** → 3개의 영어 단어 버튼 표시
-4. **답안 선택** → 버튼 클릭으로 답안 선택
-5. **결과 처리** → 정답/오답에 따른 전투 진행
-6. **게임 종료** → 승리 또는 패배 시 모달 표시
-
-## 🚀 향후 개선 계획
-
-- [ ] **단어 데이터베이스 확장**: 100+ 단어 추가
-- [ ] **난이도 시스템**: 레벨별 단어 난이도 조절  
-- [ ] **멀티플레이어**: 실시간 대전 기능
-- [ ] **성취 시스템**: 배지, 업적 기능
-- [ ] **사운드 이펙트**: 공격, 효과음 추가
-- [ ] **캐릭터 다양화**: 다양한 캐릭터 선택
-- [ ] **스킬 시스템**: 특수 공격 기능
-
-## 🎯 교육적 효과
-
-### 💡 학습자에게
-- **게임화 학습**: 재미있는 방식으로 영어 단어 학습
-- **즉시 피드백**: 실시간 정답/오답 확인
-- **반복 학습**: 게임 재시작을 통한 자연스러운 복습
-
-### 👩‍💻 개발자에게
-- **Vue.js 생태계**: Nuxt.js, Pinia 실무 경험
-- **상태 관리**: 복잡한 게임 상태 관리 패턴 학습
-- **컴포넌트 설계**: 재사용 가능한 컴포넌트 아키텍처
-- **애니메이션**: CSS 트랜지션/애니메이션 구현
-
-## 📱 반응형 디자인
-
-- **모바일 우선**: 터치 인터페이스 최적화
-- **태블릿 지원**: 중간 화면 크기 대응
-- **데스크톱**: 대화면에서의 최적 레이아웃
-
-## 🔗 참고 링크
-
-- [Nuxt.js 공식 문서](https://nuxt.com/)
-- [Pinia 공식 문서](https://pinia.vuejs.org/)  
-- [Vue.js 3 공식 문서](https://vuejs.org/)
-- [Tailwind CSS 공식 문서](https://tailwindcss.com/)
-- [다키스트 던전 (게임 영감)](https://www.darkestdungeon.com/)
 
 ## 📄 라이선스
 
 MIT License - 자유롭게 사용, 수정, 배포 가능합니다.
-
-## 👨‍💻 개발자
-
-**bedcoding** - [GitHub](https://github.com/bedcoding)
-
----
-
-⭐ 이 프로젝트가 도움이 되었다면 Star를 눌러주세요!  
-🎮 게임을 플레이하고 피드백을 남겨주세요!
-
-💼 **채용 담당자님께**: 이 프로젝트는 Vue.js/Nuxt.js 실무 역량과 창의적 문제 해결 능력을 보여주는 포트폴리오입니다.
