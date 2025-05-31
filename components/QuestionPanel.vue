@@ -5,7 +5,7 @@
       <h2 class="text-3xl font-bold text-orange-600 mb-2">문제</h2>
       <div class="bg-orange-100 border-2 border-orange-300 rounded-lg p-6">
         <span class="text-4xl font-bold text-orange-800">
-          {{ currentQuestion?.korean || '로딩중...' }}
+          {{ currentQuestion?.korean || '대기중' }}
         </span>
       </div>
     </div>
@@ -43,32 +43,6 @@
         </div>
       </div>
     </div>
-    
-    <!-- 게임 오버 모달 -->
-    <div 
-      v-if="isGameOver" 
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-    >
-      <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-        <div class="text-center">
-          <div class="text-6xl mb-4">
-            {{ isPlayerWin ? '🎉' : '💀' }}
-          </div>
-          <h3 class="text-2xl font-bold mb-2" :class="isPlayerWin ? 'text-green-600' : 'text-red-600'">
-            {{ isPlayerWin ? '승리!' : '패배!' }}
-          </h3>
-          <p class="text-gray-600 mb-4">
-            최종 점수: {{ score }}점
-          </p>
-          <button
-            @click="startNewGame"
-            class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-          >
-            다시 시작
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -85,7 +59,7 @@ const props = defineProps({
   isPlayerWin: Boolean
 })
 
-const emit = defineEmits(['selectAnswer', 'startNewGame'])
+const emit = defineEmits(['selectAnswer'])
 
 // 버튼 스타일 결정
 const getButtonClass = (choice) => {
@@ -106,9 +80,5 @@ const turnColor = computed(() => {
 // 이벤트 핸들러
 const selectAnswer = (choice) => {
   emit('selectAnswer', choice)
-}
-
-const startNewGame = () => {
-  emit('startNewGame')
 }
 </script> 

@@ -1,12 +1,23 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-purple-400 via-pink-500 to-red-500 p-4">
     <div class="container mx-auto max-w-6xl">
-      <!-- 게임 제목 -->
-      <div class="text-center mb-8">
-        <h1 class="text-5xl font-bold text-white mb-2 drop-shadow-lg">
-          ⚔️ 단어 배틀 ⚔️
-        </h1>
-        <p class="text-xl text-white opacity-90">다키스트 던전 스타일 영어 학습 게임</p>
+      <!-- 상단 네비게이션 -->
+      <div class="flex justify-between items-center mb-6">
+        <button
+          @click="goBack"
+          class="bg-gray-800/80 hover:bg-gray-700/80 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2"
+        >
+          ← 뒤로가기
+        </button>
+        
+        <div class="text-center">
+          <h1 class="text-3xl font-bold text-white drop-shadow-lg">
+            ⚔️ {{ currentStory?.title }} ⚔️
+          </h1>
+          <p class="text-white opacity-80">{{ currentStory?.enemy.name }}과의 전투</p>
+        </div>
+        
+        <div class="w-24"></div> <!-- 균형을 위한 공간 -->
       </div>
       
       <!-- 전투 화면 -->
@@ -33,7 +44,6 @@
             :level="gameStore.level"
             :is-player-win="gameStore.isPlayerWin"
             @select-answer="handleAnswer"
-            @start-new-game="startNewGame"
           />
         </div>
         
@@ -62,16 +72,6 @@
           </div>
         </div>
       </div>
-      
-      <!-- 게임 시작 버튼 (게임이 시작되지 않았을 때) -->
-      <div v-if="!gameStarted" class="text-center mt-8">
-        <button
-          @click="startNewGame"
-          class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-lg text-2xl transition-all duration-200 transform hover:scale-105 shadow-lg"
-        >
-          🎮 게임 시작!
-        </button>
-      </div>
     </div>
   </div>
 </template>
@@ -84,16 +84,19 @@ import { useGameStore } from '@/stores/game'
 const gameStore = useGameStore()
 
 // 반응형 상태
-const gameStarted = ref(false)
 const isPlayerAttacking = ref(false)
 const isEnemyAttacking = ref(false)
 const battleLogs = ref([])
 
+// 현재 스토리
+const currentStory = computed(() => gameStore.currentStory)
+
 // 컴포넌트 마운트 시 초기화
 onMounted(() => {
   // 초기화
-  addBattleLog('🎯 게임에 오신 것을 환영합니다!')
+  addBattleLog('🎯 전투가 시작되었습니다!')
   addBattleLog('📚 한글 단어에 맞는 영어 단어를 선택하세요!')
+  addBattleLog(`🛡️ ${gameStore.player.name} VS ${gameStore.enemy.name} 👾`)
 })
 
 // 답안 선택 처리
@@ -135,17 +138,9 @@ const handleAnswer = (selectedAnswer) => {
   }, 1000)
 }
 
-// 게임 시작
-const startNewGame = () => {
-  gameStarted.value = true
-  battleLogs.value = []
-  isPlayerAttacking.value = false
-  isEnemyAttacking.value = false
-  
-  gameStore.startNewGame()
-  
-  addBattleLog('🚀 새로운 게임이 시작되었습니다!')
-  addBattleLog(`🛡️ ${gameStore.player.name} VS ${gameStore.enemy.name} 👾`)
+// 뒤로가기
+const goBack = () => {
+  gameStore.setGamePhase('story')
 }
 
 // 전투 로그 추가
