@@ -34,6 +34,10 @@ npm install
 # 또는
 yarn install
 
+# 환경 변수 설정 (ChatGPT API 사용시)
+# .env 파일을 루트 디렉토리에 생성하고 다음 내용 추가:
+# OPENAI_API_KEY=sk-your-openai-api-key-here
+
 # 개발 서버 실행 (http://localhost:3000)
 npm run dev
 # 또는
@@ -46,6 +50,30 @@ yarn build
 # 프로덕션 실행
 npm run preview
 yarn preview
+```
+
+### 🔑 API 설정
+
+현재 ChatGPT API도 연동중입니다.
+
+1. **OpenAI API 키 발급**: [OpenAI 플랫폼](https://platform.openai.com/)에서 API 키를 발급받으세요.
+
+2. **환경 변수 설정**: 프로젝트 루트에 `.env` 파일을 생성하고 다음과 같이 설정하세요:
+   ```env
+   OPENAI_API_KEY=sk-your-openai-api-key-here
+   ```
+
+3. **API 테스트**: 메인 메뉴 하단의 "🤖 ChatGPT API 테스트" 버튼으로 연결 상태를 확인할 수 있습니다.
+
+### 🌐 배포 (Vercel 권장)
+
+```bash
+# Vercel로 배포
+npm i -g vercel
+vercel
+
+# 환경 변수는 Vercel 대시보드에서 설정:
+# Settings > Environment Variables > OPENAI_API_KEY 추가
 ```
 
 ## 🎨 주요 기능

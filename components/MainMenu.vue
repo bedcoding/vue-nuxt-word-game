@@ -64,8 +64,20 @@
       
       <!-- 하단 정보 -->
       <div class="text-center text-purple-300 text-sm mt-8">
-        <p>영어 단어로 적을 물리치는 RPG 어드벤처</p>
+        <p>영어 단어로 적을 물리치는 어드벤처</p>
         <p class="mt-2">Vue.js 3 + Nuxt.js 3 + Pinia 🚀</p>
+        
+        <!-- API 테스트 버튼 (개발용) -->
+        <div class="mt-4">
+          <button
+            @click="testChatGPT"
+            :disabled="isTestingAPI"
+            class="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-2 px-6 rounded-lg text-sm transition-all duration-200 transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+          >
+            {{ isTestingAPI ? '🔄 테스트 중...' : '🤖 ChatGPT API 테스트' }}
+          </button>
+          <p class="text-xs text-gray-400 mt-1">콘솔에서 결과 확인</p>
+        </div>
       </div>
     </div>
     
@@ -91,6 +103,7 @@ import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
 const selectedStoryId = ref(null)
+const isTestingAPI = ref(false)
 
 // 스토리 아이콘 반환
 const getStoryIcon = (storyId) => {
@@ -112,6 +125,38 @@ const selectStory = (storyId) => {
 const startStory = () => {
   if (selectedStoryId.value) {
     gameStore.setGamePhase('story')
+  }
+}
+
+// ChatGPT API 테스트 함수
+const testChatGPT = async () => {
+  isTestingAPI.value = true
+  
+  try {
+    console.log('🚀 ChatGPT API 테스트 시작...')
+    
+    const response = await $fetch('/api/chat', {
+      method: 'POST',
+      body: {
+        message: '안녕하세요! 간단한 영어 단어 퀴즈를 하나 만들어주세요.'
+      }
+    })
+    
+    console.log('✅ ChatGPT API 테스트 성공!')
+    console.log('📝 응답 데이터:', response)
+    
+    if (response.success) {
+      console.log('💬 ChatGPT 응답:', response.message)
+      console.log('📊 토큰 사용량:', response.usage)
+    } else {
+      console.error('❌ API 오류:', response.error)
+    }
+    
+  } catch (error) {
+    console.error('🔥 ChatGPT API 호출 실패:', error)
+    console.error('상세 오류:', error.message)
+  } finally {
+    isTestingAPI.value = false
   }
 }
 </script>
