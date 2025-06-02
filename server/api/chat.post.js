@@ -1,7 +1,129 @@
+// Nuxt 3 서버 함수들 import
+import { getHeader, createError, readBody } from 'h3'
+
 export default defineEventHandler(async (event) => {
   try {
+    // 🛡️ 보안 체크 1: HTTP Method 검증
+    if (event.node.req.method !== 'POST') {
+      throw createError({
+        statusCode: 405,
+        statusMessage: 'Method Not Allowed'
+      })
+    }
+
+    // 🛡️ 보안 체크 2: Origin/Referer 검증 (CSRF 방지)
+    const origin = getHeader(event, 'origin')
+    const host = getHeader(event, 'host')
+    
+    // 개발 환경에서는 localhost 허용, 프로덕션에서는 도메인 제한
+    const isDev = process.env.NODE_ENV === 'development'
+    const allowedOrigins = isDev 
+      ? ['http://localhost:3000', `http://${host}`, `https://${host}`]
+      : [`https://${host}`, 'https://vue-nuxt-word-game.vercel.app'] // Vercel 배포 도메인
+    
+    if (!isDev && origin && !allowedOrigins.includes(origin)) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Forbidden: Invalid Origin'
+      })
+    }
+
+    // 🛡️ 보안 체크 3: 지능적인 레이트 리미팅
+    // 클라이언트 IP 가져오기 (Nuxt 3 방식)
+    const clientIP = getHeader(event, 'x-forwarded-for') || 
+                     getHeader(event, 'x-real-ip') || 
+                     event.node.req.socket?.remoteAddress || 
+                     'unknown'
+    
+    const now = Date.now()
+    
+    const rateLimitWindows = {
+      // 단기: 1분에 20번 (버스트 허용)
+      short: { window: 60 * 1000, maxRequests: 20 },
+      // 중기: 10분에 100번 (지속적 사용 허용)  
+      medium: { window: 10 * 60 * 1000, maxRequests: 100 },
+      // 장기: 1시간에 300번 (남용 방지)
+      long: { window: 60 * 60 * 1000, maxRequests: 300 }
+    }
+    
+    // 간단한 메모리 기반 레이트 리미팅 (실제로는 Redis 사용 권장)
+    global.apiCallHistory = global.apiCallHistory || new Map()
+    const userHistory = global.apiCallHistory.get(clientIP) || []
+    
+    // 각 시간 윈도우별로 체크
+    let blocked = false
+    let blockReason = ''
+    
+    for (const [level, config] of Object.entries(rateLimitWindows)) {
+      const recentRequests = userHistory.filter(
+        timestamp => now - timestamp < config.window
+      )
+      
+      if (recentRequests.length >= config.maxRequests) {
+        blocked = true
+        blockReason = `Too many requests in ${level} window (${recentRequests.length}/${config.maxRequests})`
+        break
+      }
+    }
+    
+    if (blocked) {
+      console.warn(`Rate limit exceeded for IP ${clientIP}: ${blockReason}`)
+      throw createError({
+        statusCode: 429,
+        statusMessage: 'Too Many Requests - Please try again later'
+      })
+    }
+    
+    // 현재 요청 기록 (최근 1시간만 보관하여 메모리 절약)
+    const oneHourAgo = now - (60 * 60 * 1000)
+    const cleanedHistory = userHistory.filter(timestamp => timestamp > oneHourAgo)
+    cleanedHistory.push(now)
+    global.apiCallHistory.set(clientIP, cleanedHistory)
+
+    // 🛡️ 보안 체크 4: 유연한 입력값 검증
     const body = await readBody(event)
     const { message } = body
+
+    if (!message || typeof message !== 'string') {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request: message is required'
+      })
+    }
+
+    // 메시지 길이 제한을 더 관대하게 (게임 특성상 긴 질문 가능)
+    if (message.length > 2000) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request: message too long (max 2000 characters)'
+      })
+    }
+
+    // 🛡️ 보안 체크 5: 의심스러운 패턴 감지
+    const suspiciousPatterns = [
+      /sql|select|insert|update|delete|drop|union/i, // SQL Injection 시도
+      /script|javascript|eval|alert/i, // XSS 시도
+      /<.*?>/g, // HTML 태그 (기본적인 방어)
+      /\.(exe|bat|sh|php|jsp)$/i // 파일 업로드 시도
+    ]
+    
+    const isSuspicious = suspiciousPatterns.some(pattern => pattern.test(message))
+    
+    if (isSuspicious) {
+      console.warn(`Suspicious request detected from IP ${clientIP}: ${message.substring(0, 100)}...`)
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request: Invalid content detected'
+      })
+    }
+
+    // 🛡️ 보안 체크 6: API 키 존재 여부 확인
+    if (!process.env.OPENAI_API_KEY) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Internal Server Error: API key not configured'
+      })
+    }
 
     // ChatGPT API 호출
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -16,16 +138,19 @@ export default defineEventHandler(async (event) => {
         messages: [
           {
             role: 'user',
-            content: message || '안녕하세요! 테스트 메시지입니다.'
+            content: message
           }
         ],
-        max_tokens: 100,
+        max_tokens: 100, // 토큰 수 제한으로 비용 절약
         temperature: 0.7
       })
     })
 
     if (!response.ok) {
-      throw new Error(`ChatGPT API 오류: ${response.status}`)
+      throw createError({
+        statusCode: response.status,
+        statusMessage: `ChatGPT API 오류: ${response.status}`
+      })
     }
 
     const data = await response.json()
@@ -37,9 +162,15 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     console.error('ChatGPT API 호출 실패:', error)
-    return {
-      success: false,
-      error: error.message
+    
+    // 보안상 민감한 정보는 로그에만 남기고 클라이언트에는 일반적인 메시지만 전송
+    if (error.statusCode) {
+      throw error // createError로 만든 에러는 그대로 전달
     }
+    
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Internal Server Error'
+    })
   }
 }) 
