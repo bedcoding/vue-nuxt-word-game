@@ -41,17 +41,25 @@
           <!-- 적 정보 미리보기 -->
           <div class="mt-8 p-6 bg-gradient-to-r from-red-900/50 to-orange-900/50 border border-red-400/30 rounded-lg">
             <h3 class="text-xl font-bold text-red-200 mb-4 text-center">⚠️ 적 정보</h3>
-            <div class="flex items-center justify-center gap-6">
-              <div class="text-center">
-                <div class="text-3xl mb-2">👾</div>
-                <div class="text-white font-semibold">{{ currentStory?.enemy.name }}</div>
-                <div class="text-red-300 text-sm">HP: {{ currentStory?.enemy.hp }}</div>
+            <div class="flex items-center justify-between gap-8">
+              <!-- 적 정보 -->
+              <div class="text-center flex-1">
+                <div class="text-6xl mb-3 filter drop-shadow-lg">👾</div>
+                <div class="text-white font-bold text-lg">{{ currentStory?.enemy.name }}</div>
+                <div class="text-red-300 text-sm font-medium">HP: {{ currentStory?.enemy.hp }}</div>
               </div>
-              <div class="text-center">
-                <div class="text-lg text-yellow-300 mb-2">vs</div>
-                <div class="text-3xl mb-2">🛡️</div>
-                <div class="text-white font-semibold">{{ gameStore.player.name }}</div>
-                <div class="text-green-300 text-sm">HP: {{ gameStore.player.hp }}</div>
+              
+              <!-- VS 구분선 -->
+              <div class="text-center flex-shrink-0">
+                <div class="text-2xl font-bold text-yellow-300 mb-2 animate-pulse">VS</div>
+                <div class="w-0.5 h-16 bg-gradient-to-b from-yellow-400 to-red-400 mx-auto"></div>
+              </div>
+              
+              <!-- 플레이어 정보 -->
+              <div class="text-center flex-1">
+                <div class="text-6xl mb-3 filter drop-shadow-lg">🛡️</div>
+                <div class="text-white font-bold text-lg">{{ gameStore.player.name }}</div>
+                <div class="text-green-300 text-sm font-medium">HP: {{ gameStore.player.hp }}</div>
               </div>
             </div>
           </div>
@@ -160,7 +168,7 @@ onMounted(() => {
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(1.25rem);
   }
   to {
     opacity: 1;
@@ -173,10 +181,21 @@ onMounted(() => {
     transform: translateY(0px) rotate(0deg);
   }
   33% {
-    transform: translateY(-20px) rotate(120deg);
+    transform: translateY(-1.25rem) rotate(120deg);
   }
   66% {
-    transform: translateY(10px) rotate(240deg);
+    transform: translateY(0.625rem) rotate(240deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
   }
 }
 
@@ -188,19 +207,48 @@ onMounted(() => {
   animation: float 4s ease-in-out infinite;
 }
 
+.animate-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* 이모지 렌더링 최적화 */
+.text-6xl {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", emoji, sans-serif;
+  line-height: 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 그림자 효과 최적화 */
+.filter {
+  filter: drop-shadow(0 0.25rem 0.5rem rgba(0, 0, 0, 0.3));
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .flex-1 .text-6xl {
+    font-size: 3rem;
+  }
+  
+  .gap-8 {
+    gap: 1rem;
+  }
+}
+
 /* 스크롤바 스타일링 */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 0.5rem;
 }
 
 ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 ::-webkit-scrollbar-thumb {
   background: rgba(147, 51, 234, 0.6);
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 ::-webkit-scrollbar-thumb:hover {
