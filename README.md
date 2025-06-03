@@ -1,5 +1,8 @@
 # ⚔️ 단어 배틀 (Word Battle) 🎮
 
+## 🌐 **게임 플레이 데모**
+> **🚀 https://vue-nuxt-word-game.vercel.app/**
+
 스토리 기반의 턴제 영어 단어 학습 게임입니다.  
 Vue.js 3, Nuxt.js 3, Pinia를 활용한 인터랙티브 학습 게임 프로젝트입니다.
 
