@@ -12,9 +12,9 @@
         
         <div class="text-center">
           <h1 class="text-3xl font-bold text-white drop-shadow-lg">
-            ⚔️ {{ currentStory?.title }} ⚔️
+            ⚔️ {{ currentStage?.storyTitle }} ⚔️
           </h1>
-          <p class="text-white opacity-80">{{ currentStory?.enemy.name }}과의 전투</p>
+          <p class="text-white opacity-80">{{ currentStage?.enemy.name }}</p>
         </div>
         
         <div class="w-24"></div> <!-- 균형을 위한 공간 -->
@@ -88,8 +88,8 @@ const isPlayerAttacking = ref(false)
 const isEnemyAttacking = ref(false)
 const battleLogs = ref([])
 
-// 현재 스토리
-const currentStory = computed(() => gameStore.currentStory)
+// 현재 단계
+const currentStage = computed(() => gameStore.currentStage)
 
 // 컴포넌트 마운트 시 초기화
 onMounted(() => {

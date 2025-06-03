@@ -5,21 +5,45 @@
     
     <!-- 메인 콘텐츠 -->
     <div class="relative z-10 container mx-auto px-4 py-8 min-h-screen flex flex-col">
-      <!-- 뒤로가기 버튼 -->
-      <div class="mb-6">
+      <!-- 뒤로가기 버튼 및 진행 상황 -->
+      <div class="mb-6 flex items-center justify-between">
         <button
           @click="goBack"
           class="bg-gray-800/80 hover:bg-gray-700/80 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2"
         >
           ← 뒤로가기
         </button>
+        
+        <!-- 진행 상황 표시 -->
+        <div class="bg-black/40 backdrop-blur-sm border border-purple-400/30 rounded-lg px-4 py-2">
+          <div class="text-white text-sm font-bold">
+            {{ currentRegion?.title }} - {{ gameStore.currentStageNumber }}/10 단계
+          </div>
+          <div class="flex items-center gap-1 mt-1">
+            <div class="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                class="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+                :style="{ width: gameStore.progressPercentage + '%' }"
+              ></div>
+            </div>
+            <span class="text-xs text-purple-300 ml-2">{{ Math.round(gameStore.progressPercentage) }}%</span>
+          </div>
+        </div>
       </div>
       
       <!-- 스토리 제목 -->
       <div class="text-center mb-8">
-        <div class="text-4xl mb-4">{{ getStoryIcon(currentStory?.id) }}</div>
-        <h1 class="text-4xl font-bold text-white mb-2">{{ currentStory?.title }}</h1>
+        <div class="text-4xl mb-4">{{ getStoryIcon(currentRegion?.id) }}</div>
+        <h1 class="text-4xl font-bold text-white mb-2">{{ currentStage?.storyTitle }}</h1>
+        <div class="text-lg text-purple-300 mb-4">{{ currentRegion?.title }}</div>
         <div class="w-24 h-1 bg-gradient-to-r from-purple-500 to-pink-500 mx-auto rounded"></div>
+        
+        <!-- 보스 단계 표시 -->
+        <div v-if="gameStore.isBossStage" class="mt-4">
+          <div class="inline-flex items-center gap-2 bg-gradient-to-r from-red-600/80 to-orange-600/80 text-white px-4 py-2 rounded-full text-sm font-bold animate-pulse">
+            👑 최종 보스전 👑
+          </div>
+        </div>
       </div>
       
       <!-- 스토리 콘텐츠 -->
@@ -40,13 +64,17 @@
           
           <!-- 적 정보 미리보기 -->
           <div class="mt-8 p-6 bg-gradient-to-r from-red-900/50 to-orange-900/50 border border-red-400/30 rounded-lg">
-            <h3 class="text-xl font-bold text-red-200 mb-4 text-center">⚠️ 적 정보</h3>
+            <h3 class="text-xl font-bold text-red-200 mb-4 text-center">
+              {{ gameStore.isBossStage ? '👑 최종 보스 정보 👑' : '⚠️ 적 정보 ⚠️' }}
+            </h3>
             <div class="flex items-center justify-between gap-8">
               <!-- 적 정보 -->
               <div class="text-center flex-1">
-                <div class="text-6xl mb-3 filter drop-shadow-lg">👾</div>
-                <div class="text-white font-bold text-lg">{{ currentStory?.enemy.name }}</div>
-                <div class="text-red-300 text-sm font-medium">HP: {{ currentStory?.enemy.hp }}</div>
+                <div class="text-6xl mb-3 filter drop-shadow-lg">
+                  {{ gameStore.isBossStage ? '👹' : '👾' }}
+                </div>
+                <div class="text-white font-bold text-lg">{{ currentStage?.enemy.name }}</div>
+                <div class="text-red-300 text-sm font-medium">HP: {{ currentStage?.enemy.hp }}</div>
               </div>
               
               <!-- VS 구분선 -->
@@ -69,12 +97,35 @@
             <h4 class="text-lg font-semibold text-blue-200 mb-3 text-center">📚 출제될 단어들</h4>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
               <div 
-                v-for="word in currentStory?.words"
+                v-for="word in currentStage?.words"
                 :key="word.korean"
                 class="text-center p-2 bg-blue-800/30 rounded"
               >
                 <div class="text-white font-medium">{{ word.korean }}</div>
                 <div class="text-blue-300 text-xs">{{ word.english }}</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 단계별 보상 정보 -->
+          <div class="mt-6 p-4 bg-green-900/30 border border-green-400/30 rounded-lg">
+            <h4 class="text-lg font-semibold text-green-200 mb-3 text-center">🎁 클리어 보상</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div class="text-center p-2 bg-green-800/30 rounded">
+                <div class="text-green-300 font-medium">승리 점수</div>
+                <div class="text-white text-lg font-bold">+50점</div>
+              </div>
+              <div class="text-center p-2 bg-green-800/30 rounded">
+                <div class="text-green-300 font-medium">체력 회복</div>
+                <div class="text-white text-lg font-bold">
+                  {{ gameStore.isBossStage ? '없음' : '+20 HP' }}
+                </div>
+              </div>
+              <div class="text-center p-2 bg-green-800/30 rounded">
+                <div class="text-green-300 font-medium">보스 보너스</div>
+                <div class="text-white text-lg font-bold">
+                  {{ gameStore.isBossStage ? '+100점' : '없음' }}
+                </div>
               </div>
             </div>
           </div>
@@ -86,7 +137,7 @@
             @click="startBattle"
             class="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold py-4 px-12 rounded-xl text-xl transition-all duration-200 transform hover:scale-105 shadow-2xl"
           >
-            ⚔️ 전투 시작
+            {{ gameStore.isBossStage ? '👑 최종 결전 시작!' : '⚔️ 전투 시작' }}
           </button>
         </div>
       </div>
@@ -94,6 +145,7 @@
       <!-- 하단 힌트 -->
       <div class="text-center text-purple-300 text-sm mt-8">
         <p>💡 한글 단어에 맞는 영어 단어를 선택하여 적을 공격하세요!</p>
+        <p class="mt-1">🏆 10단계를 모두 클리어하면 승리합니다!</p>
       </div>
     </div>
     
@@ -122,23 +174,24 @@ const gameStore = useGameStore()
 const isAnimating = ref(true)
 const currentParagraph = ref(0)
 
-// 현재 스토리 가져오기
-const currentStory = computed(() => gameStore.currentStory)
+// 현재 지역과 단계 정보
+const currentRegion = computed(() => gameStore.currentRegion)
+const currentStage = computed(() => gameStore.currentStage)
 
 // 스토리를 문단별로 나누기
 const storyParagraphs = computed(() => {
-  if (!currentStory.value?.content) return []
-  return currentStory.value.content.split('\n').filter(p => p.trim())
+  if (!currentStage.value?.content) return []
+  return currentStage.value.content.split('\n').filter(p => p.trim())
 })
 
 // 스토리 아이콘
-const getStoryIcon = (storyId) => {
+const getStoryIcon = (regionId) => {
   const icons = {
     1: '📚', // 마법 도서관
     2: '🌀', // 시간의 미로
-    3: '👹'  // 어둠의 악마
+    3: '🏰'  // 어둠의 성
   }
-  return icons[storyId] || '⚔️'
+  return icons[regionId] || '⚔️'
 }
 
 // 뒤로가기
