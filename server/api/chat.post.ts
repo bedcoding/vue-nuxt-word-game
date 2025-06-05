@@ -1,7 +1,60 @@
 // Nuxt 3 서버 함수들 import
 import { getHeader, createError, readBody } from 'h3'
 
-export default defineEventHandler(async (event) => {
+// 📝 API 요청/응답 타입 정의
+interface ChatRequestBody {
+  message: string;
+}
+
+interface OpenAIMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+interface OpenAIUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+interface OpenAIResponse {
+  choices: Array<{
+    message: OpenAIMessage;
+    finish_reason: string;
+    index: number;
+  }>;
+  usage: OpenAIUsage;
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+}
+
+interface ChatAPIResponse {
+  success: boolean;
+  message?: string;
+  usage?: OpenAIUsage;
+  error?: string;
+}
+
+// 📝 레이트 리미팅 타입 정의
+interface RateLimitConfig {
+  window: number;
+  maxRequests: number;
+}
+
+interface RateLimitWindows {
+  short: RateLimitConfig;
+  medium: RateLimitConfig;
+  long: RateLimitConfig;
+}
+
+// 전역 변수 타입 확장
+declare global {
+  var apiCallHistory: Map<string, number[]> | undefined;
+}
+
+export default defineEventHandler(async (event): Promise<ChatAPIResponse> => {
   try {
     // 🛡️ 보안 체크 1: HTTP Method 검증
     if (event.node.req.method !== 'POST') {
@@ -30,14 +83,14 @@ export default defineEventHandler(async (event) => {
 
     // 🛡️ 보안 체크 3: 지능적인 레이트 리미팅
     // 클라이언트 IP 가져오기 (Nuxt 3 방식)
-    const clientIP = getHeader(event, 'x-forwarded-for') || 
-                     getHeader(event, 'x-real-ip') || 
-                     event.node.req.socket?.remoteAddress || 
-                     'unknown'
+    const clientIP: string = getHeader(event, 'x-forwarded-for') || 
+                             getHeader(event, 'x-real-ip') || 
+                             event.node.req.socket?.remoteAddress || 
+                             'unknown'
     
-    const now = Date.now()
+    const now: number = Date.now()
     
-    const rateLimitWindows = {
+    const rateLimitWindows: RateLimitWindows = {
       // 단기: 1분에 20번 (버스트 허용)
       short: { window: 60 * 1000, maxRequests: 20 },
       // 중기: 10분에 100번 (지속적 사용 허용)  
@@ -47,12 +100,12 @@ export default defineEventHandler(async (event) => {
     }
     
     // 간단한 메모리 기반 레이트 리미팅 (실제로는 Redis 사용 권장)
-    global.apiCallHistory = global.apiCallHistory || new Map()
-    const userHistory = global.apiCallHistory.get(clientIP) || []
+    global.apiCallHistory = global.apiCallHistory || new Map<string, number[]>()
+    const userHistory: number[] = global.apiCallHistory.get(clientIP) || []
     
     // 각 시간 윈도우별로 체크
-    let blocked = false
-    let blockReason = ''
+    let blocked: boolean = false
+    let blockReason: string = ''
     
     for (const [level, config] of Object.entries(rateLimitWindows)) {
       const recentRequests = userHistory.filter(
@@ -81,8 +134,8 @@ export default defineEventHandler(async (event) => {
     global.apiCallHistory.set(clientIP, cleanedHistory)
 
     // 🛡️ 보안 체크 4: 유연한 입력값 검증
-    const body = await readBody(event)
-    const { message } = body
+    const body: ChatRequestBody = await readBody(event)
+    const { message }: { message: string } = body
 
     if (!message || typeof message !== 'string') {
       throw createError({
@@ -126,7 +179,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // ChatGPT API 호출
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response: Response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -153,18 +206,18 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const data = await response.json()
+    const data: OpenAIResponse = await response.json()
     
     return {
       success: true,
       message: data.choices[0].message.content,
       usage: data.usage
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('ChatGPT API 호출 실패:', error)
     
     // 보안상 민감한 정보는 로그에만 남기고 클라이언트에는 일반적인 메시지만 전송
-    if (error.statusCode) {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
       throw error // createError로 만든 에러는 그대로 전달
     }
     

@@ -152,17 +152,17 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
-const selectedRegionId = ref(null)
-const isTestingAPI = ref(false)
+const selectedRegionId = ref<number | null>(null)
+const isTestingAPI = ref<boolean>(false)
 
 // 지역 아이콘 반환
-const getRegionIcon = (regionId) => {
-  const icons = {
+const getRegionIcon = (regionId: number): string => {
+  const icons: Record<number, string> = {
     1: '📚', // 마법 도서관
     2: '🌀', // 시간의 미로
     3: '🏰'  // 어둠의 성
@@ -171,7 +171,7 @@ const getRegionIcon = (regionId) => {
 }
 
 // 지역 선택
-const selectRegion = (regionId) => {
+const selectRegion = (regionId: number): void => {
   selectedRegionId.value = regionId
 }
 
@@ -182,18 +182,37 @@ const startAdventure = () => {
   }
 }
 
+// API 응답 타입 정의
+interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+interface APIResponse {
+  success: boolean;
+  message?: string;
+  usage?: TokenUsage;
+  error?: string;
+}
+
+interface APIRequestBody {
+  message: string;
+}
+
 // ChatGPT API 테스트 함수
-const testChatGPT = async () => {
+const testChatGPT = async (): Promise<void> => {
   isTestingAPI.value = true
   
   try {
     console.log('🚀 ChatGPT API 테스트 시작...')
     
-    const response = await $fetch('/api/chat', {
+    // $fetch 타입을 명시적으로 지정
+    const response = await $fetch<APIResponse>('/api/chat', {
       method: 'POST',
       body: {
         message: '안녕하세요! 간단한 영어 단어 퀴즈를 하나 만들어주세요.'
-      }
+      } as APIRequestBody
     })
     
     console.log('✅ ChatGPT API 테스트 성공!')
@@ -206,9 +225,11 @@ const testChatGPT = async () => {
       console.error('❌ API 오류:', response.error)
     }
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('🔥 ChatGPT API 호출 실패:', error)
-    console.error('상세 오류:', error.message)
+    if (error instanceof Error) {
+      console.error('상세 오류:', error.message)
+    }
   } finally {
     isTestingAPI.value = false
   }

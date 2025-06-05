@@ -14,7 +14,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useGameStore } from '@/stores/game'
 
 // 게임 스토어 사용
