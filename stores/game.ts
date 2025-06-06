@@ -277,8 +277,8 @@ export const useGameStore = defineStore('game', {
         }
       } else {
         // 10단계 완료 시 승리 화면으로
-        this.gamePhase = 'result'
-        navigateTo('/result')
+        this.gamePhase = 'victory'
+        navigateTo('/victory')
       }
     },
     
@@ -370,26 +370,26 @@ export const useGameStore = defineStore('game', {
     checkGameOver() {
       if (this.player.hp <= 0) {
         this.isGameOver = true
-        this.gamePhase = 'result'
-        // 🔧 패배 시 결과 페이지로 이동
+        this.gamePhase = 'defeat'
+        // 🔧 패배 시 패배 페이지로 이동
         setTimeout(() => {
-          navigateTo('/result')
+          navigateTo('/defeat')
         }, 1000)
       } else if (this.enemy.hp <= 0) {
         this.isGameOver = true
         this.score += 50 // 일반 승리 보너스
         
         if (this.currentStageNumber < 10) {
-          // 다음 단계로 진행
+          // 다음 단계로 진행 (짧은 딜레이로 UI 피드백 허용)
           setTimeout(() => {
             this.nextStage()
-          }, 2000)
+          }, 1500)
         } else {
           // 10단계 완료 시 승리 화면
-          this.gamePhase = 'result'
+          this.gamePhase = 'victory'
           this.score += 100 // 보스 클리어 보너스
           setTimeout(() => {
-            navigateTo('/result')
+            navigateTo('/victory')
           }, 2000)
         }
       }

@@ -86,23 +86,22 @@ const handleAnswer = (selectedAnswer: string) => {
   // 게임 스토어의 답안 선택 처리
   gameStore.selectAnswer(selectedAnswer)
   
-  // 게임 종료 체크
+  // 게임 종료 체크 (라우팅은 게임 스토어에서 처리)
   setTimeout(() => {
     if (gameStore.isGameOver) {
-      if (gameStore.isPlayerWin) {
+      // 🔧 승리 판정을 enemy.hp로 직접 체크 (타이밍 문제 방지)
+      if (gameStore.enemy.hp <= 0) {
         emit('battleLog', '🎉 승리! 모든 적을 물리쳤습니다!')
-        // 승리 시 결과 페이지로 이동
-        setTimeout(() => {
-          navigateTo('/result')
-        }, 2000)
-      } else {
+        if (gameStore.currentStageNumber < 10) {
+          emit('battleLog', '🚀 다음 단계로 진행합니다!')
+        } else {
+          emit('battleLog', '👑 모든 단계를 완료했습니다!')
+        }
+      } else if (gameStore.player.hp <= 0) {
         emit('battleLog', '💀 패배... 다시 도전해보세요!')
-        // 패배 시 결과 페이지로 이동
-        setTimeout(() => {
-          navigateTo('/result')
-        }, 2000)
       }
+      // 🔧 라우팅은 게임 스토어의 checkGameOver에서 처리하므로 여기서는 제거
     }
-  }, 1000)
+  }, 500) // 더 빠른 피드백
 }
 </script> 

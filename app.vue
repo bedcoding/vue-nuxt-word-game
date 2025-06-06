@@ -11,5 +11,6 @@
 // - pages/index.vue -> /
 // - pages/story.vue -> /story  
 // - pages/battle.vue -> /battle
-// - pages/result.vue -> /result
+// - pages/victory.vue -> /victory
+// - pages/defeat.vue -> /defeat
 </script>

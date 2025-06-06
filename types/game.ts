@@ -38,7 +38,7 @@ export interface AIStoryData {
   content: string;
 }
 
-export type GamePhase = 'menu' | 'story' | 'battle' | 'result';
+export type GamePhase = 'menu' | 'story' | 'battle' | 'victory' | 'defeat';
 
 export interface GameState {
   gamePhase: GamePhase;

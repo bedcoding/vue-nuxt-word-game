@@ -35,16 +35,24 @@ import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
 
-// 🔧 스토리 페이지 접근 제한 (재도전 및 전투 뒤로가기 허용)
-if (gameStore.gamePhase !== 'story' && gameStore.gamePhase !== 'result' && gameStore.gamePhase !== 'battle') {
-  throw createError({
-    statusCode: 404,
-    statusMessage: '잘못된 접근입니다. 메인 메뉴에서 게임을 시작해주세요.'
-  })
+// 🔧 스토리 페이지: 관대한 접근 정책 (강제 리다이렉트 없음)
+// 어떤 상태든 스토리 페이지 접근 허용하고 적절히 초기화
+
+// gamePhase가 menu인 경우 기본 게임 상태로 초기화
+if (gameStore.gamePhase === 'menu') {
+  // 기본 지역과 스테이지 설정 (강제 리다이렉트 대신)
+  if (!gameStore.selectedRegion) {
+    gameStore.selectedRegion = 1 // 기본 지역
+  }
+  if (gameStore.currentStageNumber === 0) {
+    gameStore.currentStageNumber = 1 // 기본 스테이지
+  }
+  gameStore.gamePhase = 'story'
+  gameStore.loadCurrentStage()
 }
 
-// 🔧 다른 상태에서 스토리로 진입 시 gamePhase 자동 수정
-if (gameStore.gamePhase === 'result' || gameStore.gamePhase === 'battle') {
+// 다른 상태에서도 자연스럽게 스토리로 전환
+if (gameStore.gamePhase !== 'story') {
   gameStore.gamePhase = 'story'
 }
 

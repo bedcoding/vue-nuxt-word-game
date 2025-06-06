@@ -276,12 +276,18 @@ export default defineEventHandler(async (event) => {
                 continue
               }
               
-              // 🔧 버퍼에 이전 불완전한 데이터가 있다면 합치기
-              let jsonToProcess = buffer + data
+              // 🔧 개선된 버퍼링 로직
+              let jsonToProcess = data
+              
+              // 버퍼에 이전 데이터가 있으면 합치기
+              if (buffer) {
+                jsonToProcess = buffer + data
+                console.log('🔗 버퍼와 합치기:', buffer.substring(0, 30) + '... + ' + data.substring(0, 30) + '...')
+              }
               
               const parsed = JSON.parse(jsonToProcess)
               
-              // ✅ 파싱 성공 시 버퍼 초기화
+              // ✅ 파싱 성공 시 버퍼 완전 초기화
               buffer = ''
               const content = parsed.choices?.[0]?.delta?.content || ''
               
@@ -325,21 +331,39 @@ export default defineEventHandler(async (event) => {
                 }
               }
             } catch (parseError) {
-              // 🔧 JSON 파싱 실패 시 버퍼에 저장하여 다음 청크와 합치기
-              if (data.includes('{') && !data.includes('}')) {
+              // 🔧 개선된 JSON 파싱 실패 처리
+              
+              // 1️⃣ 버퍼가 이미 있는데 또 실패한 경우 - 버퍼 초기화하고 현재 데이터만 시도
+              if (buffer) {
+                buffer = ''
+                try {
+                  const parsed = JSON.parse(data)
+                  const content = parsed.choices?.[0]?.delta?.content || ''
+                  
+                  if (content) {
+                    fullContent += content
+                    // ... (이하 동일한 처리)
+                  }
+                  continue
+                } catch (secondError) {
+                  // 현재 데이터도 파싱 실패 시 버퍼에 저장
+                  console.log('🔄 현재 데이터도 불완전, 버퍼에 저장:', data.substring(0, 50) + '...')
+                  buffer = data
+                  continue
+                }
+              }
+              
+              // 2️⃣ 처음 실패한 경우 - 불완전한 JSON인지 체크
+              if (data.includes('{') && !data.endsWith('}')) {
                 console.log('🔄 불완전한 JSON 청크 감지, 버퍼에 저장:', data.substring(0, 50) + '...')
                 buffer = data
                 continue
               }
               
-              console.error('🚨 JSON 파싱 오류:', parseError)
-              console.error('📊 파싱 실패한 데이터 길이:', data.length)
-              console.error('📊 파싱 실패한 데이터 미리보기:', data.substring(0, 100) + (data.length > 100 ? '...' : ''))
-              console.error('📊 파싱 실패한 전체 데이터:', data)
-              
-              // 🔧 버퍼 초기화 (계속 실패하지 않도록)
-              buffer = ''
-              continue
+                             // 3️⃣ 완전히 알 수 없는 오류 - 로그만 남기고 계속 진행
+               console.warn('🚨 JSON 파싱 오류 (무시하고 계속):', parseError instanceof Error ? parseError.message : String(parseError))
+               console.warn('📊 문제 데이터:', data.substring(0, 100))
+               continue
             }
           }
         }

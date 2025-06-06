@@ -20,17 +20,32 @@ import { useGameStore } from '@/stores/game'
 const gameStore = useGameStore()
 const battleLogRef = ref()
 
-// 🔧 전투 페이지 접근 제한 (스토리에서 진입 허용)
-if (gameStore.gamePhase !== 'battle' && gameStore.gamePhase !== 'story') {
-  throw createError({
-    statusCode: 404,
-    statusMessage: '잘못된 접근입니다. 스토리를 먼저 확인해주세요.'
-  })
+// 🔧 전투 페이지: 관대한 접근 정책 (강제 리다이렉트 없음)
+// 어떤 상태든 전투 페이지 접근 허용하고 적절히 초기화
+
+// gamePhase가 menu인 경우 기본 게임 상태로 초기화
+if (gameStore.gamePhase === 'menu') {
+  // 기본 지역과 스테이지 설정
+  if (!gameStore.selectedRegion) {
+    gameStore.selectedRegion = 1
+  }
+  if (gameStore.currentStageNumber === 0) {
+    gameStore.currentStageNumber = 1
+  }
+  gameStore.loadCurrentStage()
+  gameStore.gamePhase = 'battle'
+  gameStore.isGameOver = false
+  gameStore.isPlayerTurn = true
+  gameStore.generateNewQuestion()
 }
 
-// 🔧 스토리에서 전투로 진입 시 gamePhase 자동 수정
-if (gameStore.gamePhase === 'story') {
+// 다른 상태에서도 자연스럽게 전투로 전환
+if (gameStore.gamePhase !== 'battle') {
   gameStore.gamePhase = 'battle'
+  if (!gameStore.isGameOver) {
+    gameStore.isPlayerTurn = true
+    gameStore.generateNewQuestion()
+  }
 }
 
 // 전투 로그 추가 함수
