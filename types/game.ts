@@ -33,6 +33,11 @@ export interface Player {
   name: string;
 }
 
+export interface AIStoryData {
+  storyTitle: string;
+  content: string;
+}
+
 export type GamePhase = 'menu' | 'story' | 'battle' | 'result';
 
 export interface GameState {
@@ -48,4 +53,9 @@ export interface GameState {
   currentQuestion: Word | null;
   regionsDatabase: GameRegion[];
   currentWords: Word[];
+  // AI 스토리 생성 관련
+  isLoadingStory: boolean;
+  aiGeneratedStory: AIStoryData | null;
+  storyLoadingProgress: number;
+  aiStoryState: 'idle' | 'generating' | 'success' | 'failed';
 } 

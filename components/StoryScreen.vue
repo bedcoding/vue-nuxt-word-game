@@ -34,9 +34,25 @@
       <!-- 스토리 제목 -->
       <div class="text-center mb-8">
         <div class="text-4xl mb-4">{{ getStoryIcon(currentRegion?.id) }}</div>
-        <h1 class="text-4xl font-bold text-white mb-2">{{ currentStage?.storyTitle }}</h1>
+        <h1 class="text-4xl font-bold text-white mb-2">
+          {{ currentStoryData?.storyTitle || '스토리 생성 중...' }}
+        </h1>
         <div class="text-lg text-purple-300 mb-4">{{ currentRegion?.title }}</div>
         <div class="w-24 h-1 bg-gradient-to-r from-purple-500 to-pink-500 mx-auto rounded"></div>
+        
+        <!-- AI 생성 표시 -->
+        <div v-if="gameStore.aiGeneratedStory" class="mt-4">
+          <div class="inline-flex items-center gap-2 bg-gradient-to-r from-green-600/80 to-blue-600/80 text-white px-3 py-1 rounded-full text-xs font-bold">
+            🤖 AI 생성 스토리
+          </div>
+        </div>
+        
+        <!-- 스트리밍 중 표시 -->
+        <div v-else-if="!currentStoryData?.content" class="mt-4">
+          <div class="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600/80 to-purple-600/80 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse">
+            ⚡ AI가 스토리를 생성하는 중...
+          </div>
+        </div>
         
         <!-- 보스 단계 표시 -->
         <div v-if="gameStore.isBossStage" class="mt-4">
@@ -52,18 +68,25 @@
           <!-- 스토리 텍스트 -->
           <div class="prose prose-invert max-w-none">
             <div 
+              v-if="currentStoryData?.content"
               v-for="(paragraph, index) in storyParagraphs"
               :key="index"
-              class="mb-6 text-purple-100 leading-relaxed"
+              class="mb-6 text-purple-100 leading-relaxed typing-effect"
               :class="{ 'opacity-0 animate-fade-in': isAnimating && index > currentParagraph }"
-              :style="{ animationDelay: index * 0.5 + 's' }"
+              :style="{ animationDelay: index * 0.2 + 's' }"
             >
               {{ paragraph }}
+            </div>
+            
+            <!-- 스토리가 아직 없을 때 -->
+            <div v-else class="text-center py-8">
+              <div class="text-2xl mb-4 animate-pulse">✨</div>
+              <div class="text-purple-300 animate-pulse">AI가 스토리를 생성하는 중...</div>
             </div>
           </div>
           
           <!-- 적 정보 미리보기 -->
-          <div class="mt-8 p-6 bg-gradient-to-r from-red-900/50 to-orange-900/50 border border-red-400/30 rounded-lg">
+          <div v-if="currentStage" class="mt-8 p-6 bg-gradient-to-r from-red-900/50 to-orange-900/50 border border-red-400/30 rounded-lg">
             <h3 class="text-xl font-bold text-red-200 mb-4 text-center">
               {{ gameStore.isBossStage ? '👑 최종 보스 정보 👑' : '⚠️ 적 정보 ⚠️' }}
             </h3>
@@ -93,7 +116,7 @@
           </div>
           
           <!-- 단어 미리보기 -->
-          <div class="mt-6 p-4 bg-blue-900/30 border border-blue-400/30 rounded-lg">
+          <div v-if="currentStage" class="mt-6 p-4 bg-blue-900/30 border border-blue-400/30 rounded-lg">
             <h4 class="text-lg font-semibold text-blue-200 mb-3 text-center">📚 출제될 단어들</h4>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
               <div 
@@ -135,9 +158,13 @@
         <div class="text-center">
           <button
             @click="startBattle"
-            class="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold py-4 px-12 rounded-xl text-xl transition-all duration-200 transform hover:scale-105 shadow-2xl"
+            :disabled="!currentStoryData?.content"
+            class="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-4 px-12 rounded-xl text-xl transition-all duration-200 transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed shadow-2xl"
           >
-            {{ gameStore.isBossStage ? '👑 최종 결전 시작!' : '⚔️ 전투 시작' }}
+            {{ 
+              !currentStoryData?.content ? '스토리 생성 대기 중...' :
+              gameStore.isBossStage ? '👑 최종 결전 시작!' : '⚔️ 전투 시작' 
+            }}
           </button>
         </div>
       </div>
@@ -178,10 +205,13 @@ const currentParagraph = ref(0)
 const currentRegion = computed(() => gameStore.currentRegion)
 const currentStage = computed(() => gameStore.currentStage)
 
+// AI 생성 스토리 또는 하드코딩된 스토리 사용
+const currentStoryData = computed(() => gameStore.currentStoryData)
+
 // 스토리를 문단별로 나누기
 const storyParagraphs = computed(() => {
-  if (!currentStage.value?.content) return []
-  return currentStage.value.content.split('\n').filter(p => p.trim())
+  if (!currentStoryData.value?.content) return []
+  return currentStoryData.value.content.split('\n').filter(p => p.trim())
 })
 
 // 스토리 아이콘
