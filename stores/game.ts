@@ -147,12 +147,14 @@ export const useGameStore = defineStore('game', {
         this.aiStoryState = 'generating'
         this.aiGeneratedStory = null
 
-
-
         // 이전 맥락 생성
         const previousContext = this.getPreviousStoryContext()
         console.log('📝 이전 맥락:', previousContext)
 
+        // 🔧 현재 단계의 실제 적 이름 가져오기
+        const currentStage = this.currentStage
+        const actualEnemyName = currentStage?.enemy?.name
+        
         // fetch를 사용한 스트리밍
         const response = await fetch('/api/generate-story-stream', {
           method: 'POST',
@@ -160,7 +162,8 @@ export const useGameStore = defineStore('game', {
           body: JSON.stringify({
             stageNumber: this.currentStageNumber,
             regionId: this.selectedRegion,
-            previousContext
+            previousContext,
+            actualEnemyName // 🔧 실제 게임에서 사용하는 적 이름 전달
           })
         })
 
@@ -260,17 +263,22 @@ export const useGameStore = defineStore('game', {
         this.currentStageNumber++
         this.gamePhase = 'story'
         
+        // 🔧 먼저 새로운 단계 데이터 로드 (적 정보 포함)
+        this.loadCurrentStage()
+        
+        // 🔧 스토리 페이지로 이동
+        navigateTo('/story')
+        
         // 🔧 AI 스토리 생성 시도 (실패 시 하드코딩 사용)
         try {
           await this.generateAIStory()
         } catch (error) {
           // AI 스토리 생성 실패 시 하드코딩 스토리 사용
         }
-        
-        this.loadCurrentStage()
       } else {
         // 10단계 완료 시 승리 화면으로
         this.gamePhase = 'result'
+        navigateTo('/result')
       }
     },
     
@@ -280,6 +288,9 @@ export const useGameStore = defineStore('game', {
       this.isGameOver = false
       this.isPlayerTurn = true
       this.generateNewQuestion()
+      
+      // 🔧 전투 페이지로 이동
+      navigateTo('/battle')
     },
     
     // 메인 메뉴로 돌아가기
@@ -294,11 +305,17 @@ export const useGameStore = defineStore('game', {
       this.isLoadingStory = false
       // 🔧 AI 스토리 상태 초기화
       this.aiStoryState = 'idle'
+      
+      // 🔧 메인 페이지로 이동
+      navigateTo('/')
     },
     
     // 스토리로 돌아가기
     goToStory() {
       this.gamePhase = 'story'
+      
+      // 🔧 스토리 페이지로 이동
+      navigateTo('/story')
     },
     
     // 새로운 문제 생성
@@ -337,7 +354,7 @@ export const useGameStore = defineStore('game', {
     
     // 적 공격
     attackEnemy() {
-      const damage = Math.floor(Math.random() * 25) + 15 // 15-40 랜덤 데미지
+      const damage = Math.floor(Math.random() * 25) + 150 // 15-40 랜덤 데미지
       this.enemy.hp = Math.max(0, this.enemy.hp - damage)
       this.isPlayerTurn = false
     },
@@ -354,8 +371,14 @@ export const useGameStore = defineStore('game', {
       if (this.player.hp <= 0) {
         this.isGameOver = true
         this.gamePhase = 'result'
+        // 🔧 패배 시 결과 페이지로 이동
+        setTimeout(() => {
+          navigateTo('/result')
+        }, 1000)
       } else if (this.enemy.hp <= 0) {
         this.isGameOver = true
+        this.score += 50 // 일반 승리 보너스
+        
         if (this.currentStageNumber < 10) {
           // 다음 단계로 진행
           setTimeout(() => {
@@ -365,8 +388,10 @@ export const useGameStore = defineStore('game', {
           // 10단계 완료 시 승리 화면
           this.gamePhase = 'result'
           this.score += 100 // 보스 클리어 보너스
+          setTimeout(() => {
+            navigateTo('/result')
+          }, 2000)
         }
-        this.score += 50 // 일반 승리 보너스
       }
     }
   }

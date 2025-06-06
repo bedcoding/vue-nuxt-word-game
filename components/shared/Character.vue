@@ -38,22 +38,19 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { Player, Enemy } from '@/types/game'
 
-const props = defineProps({
-  character: {
-    type: Object,
-    required: true
-  },
-  isPlayer: {
-    type: Boolean,
-    default: false
-  },
-  isAttacking: {
-    type: Boolean,
-    default: false
-  }
+interface Props {
+  character: Player | Enemy
+  isPlayer?: boolean
+  isAttacking?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isPlayer: false,
+  isAttacking: false
 })
 
 // 반응형 상태
@@ -82,7 +79,7 @@ watch(() => props.character.hp, (newHp, oldHp) => {
 })
 
 // 데미지 이펙트 표시
-const showDamageEffect = (type) => {
+const showDamageEffect = (type: 'damage' | 'heal'): void => {
   showDamage.value = true
   isHurt.value = type === 'damage'
   

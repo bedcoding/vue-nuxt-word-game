@@ -46,23 +46,28 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
+import type { Word } from '@/types/game'
 
-const props = defineProps({
-  currentQuestion: Object,
-  choices: Array,
-  isPlayerTurn: Boolean,
-  isGameOver: Boolean,
-  score: Number,
-  level: Number,
-  isPlayerWin: Boolean
-})
+interface Props {
+  currentQuestion: Word | null
+  choices: string[]
+  isPlayerTurn: boolean
+  isGameOver: boolean
+  score: number
+  level: number
+  isPlayerWin: boolean
+}
 
-const emit = defineEmits(['selectAnswer'])
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  selectAnswer: [choice: string]
+}>()
 
 // 버튼 스타일 결정
-const getButtonClass = (choice) => {
+const getButtonClass = (choice: string): string => {
   const baseClass = 'border-2 font-bold'
   
   if (!props.isPlayerTurn || props.isGameOver) {
@@ -78,7 +83,7 @@ const turnColor = computed(() => {
 })
 
 // 이벤트 핸들러
-const selectAnswer = (choice) => {
+const selectAnswer = (choice: string): void => {
   emit('selectAnswer', choice)
 }
 </script> 

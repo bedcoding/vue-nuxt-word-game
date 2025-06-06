@@ -6,6 +6,7 @@ interface StoryRequestBody {
   stageNumber: number;
   regionId: number;
   previousContext?: string;
+  actualEnemyName?: string; // 🔧 실제 게임에서 사용하는 적 이름
 }
 
 export default defineEventHandler(async (event) => {
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
 
     // 🛡️ 입력값 검증
     const body: StoryRequestBody = await readBody(event)
-    const { stageNumber, regionId, previousContext } = body
+    const { stageNumber, regionId, previousContext, actualEnemyName } = body
 
     if (!stageNumber || !regionId || typeof stageNumber !== 'number' || typeof regionId !== 'number') {
       throw createError({
@@ -45,7 +46,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const region = regionConfig[regionId as keyof typeof regionConfig] || regionConfig[1]
-    const prompt = createStoryPrompt(stageNumber, region, previousContext)
+    const prompt = createStoryPrompt(stageNumber, region, previousContext, actualEnemyName)
 
     console.log('🤖 스트리밍 스토리 생성 시작:', { stageNumber, regionId })
 
@@ -104,6 +105,7 @@ export default defineEventHandler(async (event) => {
     let fullContent = ''
     let titleExtracted = false
     let title = ''
+    let buffer = '' // 🔧 불완전한 JSON 청크를 저장할 버퍼
 
     try {
       while (true) {
@@ -147,7 +149,18 @@ export default defineEventHandler(async (event) => {
             }
 
             try {
-              const parsed = JSON.parse(data)
+              // 🔧 빈 데이터나 불완전한 데이터 필터링
+              if (!data || data.trim() === '' || data.length < 10) {
+                continue
+              }
+              
+              // 🔧 버퍼에 이전 불완전한 데이터가 있다면 합치기
+              let jsonToProcess = buffer + data
+              
+              const parsed = JSON.parse(jsonToProcess)
+              
+              // ✅ 파싱 성공 시 버퍼 초기화
+              buffer = ''
               const content = parsed.choices?.[0]?.delta?.content || ''
               
               if (content) {
@@ -173,7 +186,7 @@ export default defineEventHandler(async (event) => {
                     })
                     event.node.res.write(`data: ${titleEvent}\n\n`)
                   } catch (jsonError) {
-                    console.error('제목 JSON 직렬화 오류:', jsonError)
+                    console.error('🚨 제목 JSON 직렬화 오류:', jsonError)
                   }
                 } else if (titleExtracted) {
                   // 내용 청크 이벤트 전송 (안전한 처리)
@@ -184,15 +197,26 @@ export default defineEventHandler(async (event) => {
                     })
                     event.node.res.write(`data: ${contentEvent}\n\n`)
                   } catch (jsonError) {
-                    console.error('내용 JSON 직렬화 오류:', jsonError, '청크:', content)
+                    console.error('🚨 내용 JSON 직렬화 오류:', jsonError, '청크:', content)
                     // JSON 오류가 있어도 텍스트 자체는 fullContent에 추가되므로 계속 진행
                   }
                 }
               }
             } catch (parseError) {
-              console.error('JSON 파싱 오류:', parseError)
-              console.error('파싱 실패한 데이터:', data)
-              // 파싱 실패해도 계속 진행
+              // 🔧 JSON 파싱 실패 시 버퍼에 저장하여 다음 청크와 합치기
+              if (data.includes('{') && !data.includes('}')) {
+                console.log('🔄 불완전한 JSON 청크 감지, 버퍼에 저장:', data.substring(0, 50) + '...')
+                buffer = data
+                continue
+              }
+              
+              console.error('🚨 JSON 파싱 오류:', parseError)
+              console.error('📊 파싱 실패한 데이터 길이:', data.length)
+              console.error('📊 파싱 실패한 데이터 미리보기:', data.substring(0, 100) + (data.length > 100 ? '...' : ''))
+              console.error('📊 파싱 실패한 전체 데이터:', data)
+              
+              // 🔧 버퍼 초기화 (계속 실패하지 않도록)
+              buffer = ''
               continue
             }
           }
@@ -222,8 +246,33 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-function createStoryPrompt(stageNumber: number, region: any, previousContext?: string): string {
+function createStoryPrompt(stageNumber: number, region: any, previousContext?: string, actualEnemyName?: string): string {
   const contextText = previousContext ? `\n이전 맥락: ${previousContext}` : ''
+  
+  // 🔧 단계별 다양한 적 이름 생성
+  const getVariedEnemyName = (stageNumber: number, baseEnemy: string): string => {
+    const variations: Record<string, string[]> = {
+      '정령과 마법서': [
+        '도서관 정령', '고대 정령', '지식의 수호자', '마법서 정령', '지혜의 파수꾼',
+        '서고 관리자', '정령 마법사', '고대 문헌의 수호자', '마법 정령', '도서관 마스터'
+      ],
+      '시간 수호자': [
+        '시간 정령', '시계 기사', '과거의 망령', '미래 예언자', '시간여행자',
+        '크로노스 워리어', '시간 마법사', '영원의 수호자', '시공간 조작자', '운명의 직조자'
+      ],
+      '어둠의 존재': [
+        '그림자 기사', '어둠의 마법사', '밤의 지배자', '어둠 정령', '공포의 화신',
+        '그림자 군주', '어둠의 전사', '악몽의 수호자', '어둠 마스터', '섀도우 킹'
+      ]
+    }
+    
+    const varList = variations[baseEnemy] || [baseEnemy]
+    const index = (stageNumber - 1) % varList.length
+    return varList[index]
+  }
+  
+  // 🔧 실제 게임 적 이름 우선 사용, 없으면 다양한 이름 생성
+  const enemyName = actualEnemyName || getVariedEnemyName(stageNumber, region.enemy)
   
   return `
 ${region.name} ${stageNumber}단계의 스토리를 생성해주세요.
@@ -231,7 +280,7 @@ ${region.name} ${stageNumber}단계의 스토리를 생성해주세요.
 설정:
 - 지역: ${region.name} (${region.theme} 테마)
 - 단계: ${stageNumber}/10
-- 적: ${region.enemy}
+- 적: ${enemyName}
 - 장르: 판타지 RPG
 - 목적: 영어 단어 학습 게임${contextText}
 
@@ -243,6 +292,7 @@ ${region.name} ${stageNumber}단계의 스토리를 생성해주세요.
 5. 흥미진진하고 모험적인 분위기
 6. 영어 학습 게임임을 자연스럽게 언급
 7. ${stageNumber === 10 ? '최종 보스전의 긴장감' : '다음 단계로의 기대감'} 표현
+8. 🚨 중요: 적 이름을 "${enemyName}"로 정확히 사용해주세요!
 
 예시 형식:
 "고대 서고|||2층에는 고대의 서고가 있습니다. 오래된 마법서들이 스스로 날아다니며 주문을 중얼거립니다."
