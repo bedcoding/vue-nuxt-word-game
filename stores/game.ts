@@ -354,7 +354,7 @@ export const useGameStore = defineStore('game', {
     
     // 적 공격
     attackEnemy() {
-      const damage = Math.floor(Math.random() * 25) + 150 // 15-40 랜덤 데미지
+      const damage = Math.floor(Math.random() * 25) + 15 // 15-40 랜덤 데미지
       this.enemy.hp = Math.max(0, this.enemy.hp - damage)
       this.isPlayerTurn = false
     },

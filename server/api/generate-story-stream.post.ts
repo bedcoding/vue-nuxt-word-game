@@ -9,9 +9,26 @@ interface StoryRequestBody {
   actualEnemyName?: string; // 🔧 실제 게임에서 사용하는 적 이름
 }
 
+// 📝 레이트 리미팅 타입 정의
+interface RateLimitConfig {
+  window: number;
+  maxRequests: number;
+}
+
+interface RateLimitWindows {
+  short: RateLimitConfig;
+  medium: RateLimitConfig;
+  long: RateLimitConfig;
+}
+
+// 전역 변수 타입 확장
+declare global {
+  var storyApiCallHistory: Map<string, number[]> | undefined;
+}
+
 export default defineEventHandler(async (event) => {
   try {
-    // 🛡️ HTTP Method 검증
+    // 🛡️ 보안 체크 1: HTTP Method 검증
     if (event.node.req.method !== 'POST') {
       throw createError({
         statusCode: 405,
@@ -19,7 +36,77 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 🛡️ 입력값 검증
+    // 🛡️ 보안 체크 2: Origin/Referer 검증 (CSRF 방지)
+    const origin = getHeader(event, 'origin')
+    const host = getHeader(event, 'host')
+    
+    // 개발 환경에서는 localhost 허용, 프로덕션에서는 도메인 제한
+    const isDev = process.env.NODE_ENV === 'development'
+    const allowedOrigins = isDev 
+      ? ['http://localhost:3000', `http://${host}`, `https://${host}`]
+      : [`https://${host}`, 'https://vue-nuxt-word-game.vercel.app'] // Vercel 배포 도메인
+    
+    if (!isDev && origin && !allowedOrigins.includes(origin)) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Forbidden: Invalid Origin'
+      })
+    }
+
+    // 🛡️ 보안 체크 3: 스트리밍 전용 레이트 리미팅 (더 엄격)
+    // 클라이언트 IP 가져오기
+    const clientIP: string = getHeader(event, 'x-forwarded-for') || 
+                             getHeader(event, 'x-real-ip') || 
+                             event.node.req.socket?.remoteAddress || 
+                             'unknown'
+    
+    const now: number = Date.now()
+    
+    // 스트리밍은 더 리소스 집약적이므로 더 엄격한 제한
+    const rateLimitWindows: RateLimitWindows = {
+      // 단기: 1분에 6번 (스트리밍은 느리므로 낮게)
+      short: { window: 60 * 1000, maxRequests: 6 },
+      // 중기: 10분에 30번
+      medium: { window: 10 * 60 * 1000, maxRequests: 30 },
+      // 장기: 1시간에 120번 (스토리 생성 한계)
+      long: { window: 60 * 60 * 1000, maxRequests: 120 }
+    }
+    
+    // 스트리밍 전용 히스토리 (일반 채팅과 분리)
+    global.storyApiCallHistory = global.storyApiCallHistory || new Map<string, number[]>()
+    const userHistory: number[] = global.storyApiCallHistory.get(clientIP) || []
+    
+    // 각 시간 윈도우별로 체크
+    let blocked: boolean = false
+    let blockReason: string = ''
+    
+    for (const [level, config] of Object.entries(rateLimitWindows)) {
+      const recentRequests = userHistory.filter(
+        timestamp => now - timestamp < config.window
+      )
+      
+      if (recentRequests.length >= config.maxRequests) {
+        blocked = true
+        blockReason = `Story streaming rate limit exceeded in ${level} window (${recentRequests.length}/${config.maxRequests})`
+        break
+      }
+    }
+    
+    if (blocked) {
+      console.warn(`Story streaming rate limit exceeded for IP ${clientIP}: ${blockReason}`)
+      throw createError({
+        statusCode: 429,
+        statusMessage: 'Too Many Requests - Story generation limit exceeded'
+      })
+    }
+    
+    // 현재 요청 기록
+    const oneHourAgo = now - (60 * 60 * 1000)
+    const cleanedHistory = userHistory.filter(timestamp => timestamp > oneHourAgo)
+    cleanedHistory.push(now)
+    global.storyApiCallHistory.set(clientIP, cleanedHistory)
+
+    // 🛡️ 보안 체크 4: 입력값 검증
     const body: StoryRequestBody = await readBody(event)
     const { stageNumber, regionId, previousContext, actualEnemyName } = body
 
@@ -30,7 +117,42 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 🛡️ API 키 확인
+    // 스테이지 범위 검증
+    if (stageNumber < 1 || stageNumber > 10 || regionId < 1 || regionId > 3) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request: Invalid stage or region'
+      })
+    }
+
+    // previousContext 길이 제한
+    if (previousContext && previousContext.length > 1000) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request: previousContext too long'
+      })
+    }
+
+    // 🛡️ 보안 체크 5: 의심스러운 패턴 감지
+    const textToCheck = [previousContext, actualEnemyName].filter(Boolean).join(' ')
+    const suspiciousPatterns = [
+      /sql|select|insert|update|delete|drop|union/i, // SQL Injection 시도
+      /script|javascript|eval|alert/i, // XSS 시도
+      /<.*?>/g, // HTML 태그
+      /\.(exe|bat|sh|php|jsp)$/i // 파일 업로드 시도
+    ]
+    
+    const isSuspicious = suspiciousPatterns.some(pattern => pattern.test(textToCheck))
+    
+    if (isSuspicious) {
+      console.warn(`Suspicious story request detected from IP ${clientIP}: ${textToCheck.substring(0, 100)}...`)
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Bad Request: Invalid content detected'
+      })
+    }
+
+    // 🛡️ 보안 체크 6: API 키 존재 여부 확인
     if (!process.env.OPENAI_API_KEY) {
       throw createError({
         statusCode: 500,
