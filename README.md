@@ -28,7 +28,7 @@ Vue.js 3, Nuxt.js 3, Pinia를 활용한 인터랙티브 학습 게임 프로젝�
 - **Vue.js 3** - 템플릿 문법으로 게임 UI 상태 표현이 React보다 직관적이어서 선택함
 - **Nuxt.js 3** - Vue.js 기반 풀스택 프레임워크 (React 생태계의 next.js랑 유사함)
 - **Pinia** - 상태 관리 라이브러리
-- **Tailwind CSS** - `<style scoped>` 태그에는 애니메이션을 넣고, 정적 스타일은 Tailwind로 처리하도록 역할 분담함 (둘 다 섞이면 보기 힘들어서)
+- **Tailwind CSS** - `<style scoped>` 태그에는 애니메이션을 넣고, 정적 스타일은 Tailwind로 처리 (역할 분담)
 - **TypeScript** - 타입 안정성 확보
 
 ## 📁 프로젝트 구조
