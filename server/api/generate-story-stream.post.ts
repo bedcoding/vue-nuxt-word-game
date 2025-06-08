@@ -117,7 +117,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // 스테이지 범위 검증
+    // 스테이지 범위 검증 (이 게임은 스테이지가 10단계밖에 없고 지역도 3개 밖에 없음)
     if (stageNumber < 1 || stageNumber > 10 || regionId < 1 || regionId > 3) {
       throw createError({
         statusCode: 400,

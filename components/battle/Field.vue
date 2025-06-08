@@ -67,7 +67,7 @@ const handleAnswer = (selectedAnswer: string) => {
     // 정답 처리
     isPlayerAttacking.value = true
     emit('battleLog', `✅ 정답! "${selectedAnswer}"`)
-    emit('battleLog', `⚔️ ${gameStore.player.name}가 ${gameStore.enemy.name} 공격!`)
+    emit('battleLog', `⚔️ ${gameStore.player.name} → ${gameStore.enemy.name} 공격!`)
     
     setTimeout(() => {
       isPlayerAttacking.value = false
@@ -76,7 +76,7 @@ const handleAnswer = (selectedAnswer: string) => {
     // 오답 처리
     isEnemyAttacking.value = true
     emit('battleLog', `❌ 틀렸습니다! 정답은 "${gameStore.currentQuestion?.english}"`)
-    emit('battleLog', `💥 ${gameStore.enemy.name}, ${gameStore.player.name} 공격!`)
+    emit('battleLog', `💥 ${gameStore.enemy.name} → ${gameStore.player.name} 공격!`)
     
     setTimeout(() => {
       isEnemyAttacking.value = false
