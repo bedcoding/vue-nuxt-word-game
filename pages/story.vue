@@ -26,7 +26,7 @@
     </div>
     
     <!-- 파티클 효과 -->
-    <StoryParticleEffect />
+    <SharedParticleEffect />
   </div>
 </template>
 

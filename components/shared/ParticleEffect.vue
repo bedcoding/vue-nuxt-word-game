@@ -26,5 +26,5 @@
 </style>
 
 <script setup lang="ts">
-// 스토리 파티클 효과 컴포넌트
+// 공통 파티클 효과 컴포넌트
 </script> 
