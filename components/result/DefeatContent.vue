@@ -4,7 +4,7 @@
     <div class="mb-8">
       <div class="text-8xl mb-4">💀</div>
       <h1 class="text-5xl font-bold text-red-400 mb-2 drop-shadow-lg">
-        패배...
+        패배
       </h1>
       <p class="text-xl text-red-200">
         아쉽게도 이번엔 실패했습니다

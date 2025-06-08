@@ -67,7 +67,7 @@ const handleAnswer = (selectedAnswer: string) => {
     // 정답 처리
     isPlayerAttacking.value = true
     emit('battleLog', `✅ 정답! "${selectedAnswer}"`)
-    emit('battleLog', `⚔️ ${gameStore.player.name}이(가) ${gameStore.enemy.name}을(를) 공격했습니다!`)
+    emit('battleLog', `⚔️ ${gameStore.player.name}가 ${gameStore.enemy.name} 공격!`)
     
     setTimeout(() => {
       isPlayerAttacking.value = false
@@ -76,7 +76,7 @@ const handleAnswer = (selectedAnswer: string) => {
     // 오답 처리
     isEnemyAttacking.value = true
     emit('battleLog', `❌ 틀렸습니다! 정답은 "${gameStore.currentQuestion?.english}"`)
-    emit('battleLog', `💥 ${gameStore.enemy.name}이(가) ${gameStore.player.name}을(를) 공격했습니다!`)
+    emit('battleLog', `💥 ${gameStore.enemy.name}, ${gameStore.player.name} 공격!`)
     
     setTimeout(() => {
       isEnemyAttacking.value = false
@@ -98,7 +98,7 @@ const handleAnswer = (selectedAnswer: string) => {
           emit('battleLog', '👑 모든 단계를 완료했습니다!')
         }
       } else if (gameStore.player.hp <= 0) {
-        emit('battleLog', '💀 패배... 다시 도전해보세요!')
+        emit('battleLog', '💀 패배 💀')
       }
       // 🔧 라우팅은 게임 스토어의 checkGameOver에서 처리하므로 여기서는 제거
     }

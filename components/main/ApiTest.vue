@@ -5,7 +5,7 @@
       :disabled="isTestingAPI"
       class="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-2 px-6 rounded-lg text-sm transition-all duration-200 transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
     >
-      {{ isTestingAPI ? '🔄 테스트 중...' : '🤖 ChatGPT API 테스트' }}
+      {{ isTestingAPI ? '🔄 테스트 중 🔄' : '🤖 ChatGPT API 테스트' }}
     </button>
     <p class="text-xs text-gray-400 mt-1">콘솔에서 결과 확인</p>
   </div>
@@ -41,7 +41,7 @@ const testChatGPT = async (): Promise<void> => {
   isTestingAPI.value = true
   
   try {
-    console.log('🚀 ChatGPT API 테스트 시작...')
+    console.log('🚀 ChatGPT API 테스트 시작')
     
     const requestBody: APIRequestBody = {
       message: '안녕하세요! API 연결 테스트입니다.'

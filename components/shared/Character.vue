@@ -6,34 +6,41 @@
     </h3>
     
     <!-- HP 바 -->
-    <div class="w-32 bg-gray-300 rounded-full h-4 mb-4 border-2 border-gray-400">
+    <div class="w-32 bg-gray-800/80 rounded-full h-4 mb-2 border-2 border-gray-500/50 shadow-lg">
       <div 
-        class="h-full rounded-full transition-all duration-500"
+        class="h-full rounded-full transition-all duration-500 shadow-inner"
         :class="hpBarColor"
         :style="{ width: hpPercentage + '%' }"
       ></div>
     </div>
     
     <!-- HP 텍스트 -->
-    <div class="text-sm text-gray-600 mb-4">
+    <div class="text-sm font-bold mb-4 drop-shadow-lg" :class="hpTextColor">
       {{ character.hp }} / {{ character.maxHp }}
     </div>
     
-    <!-- 캐릭터 아바타 -->
-    <div 
-      class="w-24 h-24 rounded-full flex items-center justify-center text-4xl transition-all duration-300"
-      :class="[avatarBg, { 'animate-bounce': isAttacking, 'animate-pulse': isHurt }]"
-    >
-      {{ isPlayer ? '🛡️' : '👾' }}
-    </div>
-    
-    <!-- 데미지/치유 표시 -->
-    <div 
-      v-if="showDamage" 
-      class="absolute text-2xl font-bold animate-bounce"
-      :class="damageColor"
-    >
-      {{ damageText }}
+    <!-- 캐릭터 아바타 컨테이너 -->
+    <div class="relative">
+      <!-- 캐릭터 아바타 -->
+      <div 
+        class="w-24 h-24 rounded-full flex items-center justify-center text-4xl transition-all duration-300"
+        :class="[avatarBg, { 'animate-bounce': isAttacking, 'animate-pulse': isHurt }]"
+      >
+        {{ isPlayer ? '🛡️' : '👾' }}
+      </div>
+      
+      <!-- 데미지/치유 표시 (캐릭터 옆에 표시) -->
+      <div 
+        v-if="showDamage" 
+        class="absolute text-3xl font-bold animate-damage z-10 bg-black/80 rounded-full px-3 py-1 border-2 shadow-lg"
+        :class="[
+          damageColor, 
+          isPlayer ? '-right-16 top-2' : '-left-16 top-2',
+          damageText.startsWith('-') ? 'border-red-400' : 'border-green-400'
+        ]"
+      >
+        {{ damageText }}
+      </div>
     </div>
   </div>
 </template>
@@ -57,10 +64,6 @@ const props = withDefaults(defineProps<Props>(), {
 const showDamage = ref(false)
 const damageText = ref('')
 const isHurt = ref(false)
-const lastHp = ref(props.character.hp)
-
-// 컴포넌트가 마운트될 때 초기 HP 설정
-lastHp.value = props.character.hp
 
 // HP 변화 감지
 watch(() => props.character.hp, (newHp, oldHp) => {
@@ -75,7 +78,6 @@ watch(() => props.character.hp, (newHp, oldHp) => {
     damageText.value = `+${heal}`
     showDamageEffect('heal')
   }
-  lastHp.value = newHp
 })
 
 // 데미지 이펙트 표시
@@ -112,6 +114,13 @@ const avatarBg = computed(() => {
 const damageColor = computed(() => {
   return damageText.value.startsWith('-') ? 'text-red-500' : 'text-green-500'
 })
+
+const hpTextColor = computed(() => {
+  const percentage = hpPercentage.value
+  if (percentage > 60) return 'text-green-300'
+  if (percentage > 30) return 'text-yellow-300'
+  return 'text-red-300'
+})
 </script>
 
 <style scoped>
@@ -145,5 +154,24 @@ const damageColor = computed(() => {
   100% {
     transform: scale(1);
   }
+}
+
+@keyframes damage {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-20px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-40px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+.animate-damage {
+  animation: damage 1s ease-out;
 }
 </style> 

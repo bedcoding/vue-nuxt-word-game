@@ -36,7 +36,7 @@ if (gameStore.gamePhase !== 'defeat') {
 
 // SEO 설정
 useHead({
-  title: '패배... - 워드 배틀',
+  title: '패배 - 워드 배틀',
   meta: [
     { name: 'description', content: '아쉽게도 패배했습니다. 다시 도전해보세요!' }
   ]
