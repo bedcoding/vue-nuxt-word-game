@@ -44,7 +44,7 @@ const testChatGPT = async (): Promise<void> => {
     console.log('🚀 ChatGPT API 테스트 시작')
     
     const requestBody: APIRequestBody = {
-      message: '안녕하세요! API 연결 테스트입니다.'
+      message: 'API 연결 테스트'
     }
     
     const response = await $fetch<APIResponse>('/api/chat', {
