@@ -1,398 +1,428 @@
 import { defineStore } from 'pinia'
 import { regionsDatabase } from '@/data/regions/index'
-import type { GameState, GamePhase, Word, GameRegion, Player, Enemy, AIStoryData } from '@/types/game'
+import { GAME_CONFIG } from '@/constants/game.config'
+import { pickOne, randomInt, shuffle } from '@/utils/random'
+import { createStreamLineReader, parseSseDataLine } from '@/utils/sse'
+import type {
+  AIStoryData,
+  AnswerOutcome,
+  GameStage,
+  GameState,
+  RoundResult
+} from '@/types/game'
+
+/**
+ * 진행 중인 스토리 요청 추적용.
+ *
+ * state에 두지 않는 이유: AbortController는 직렬화할 수 없어서 SSR 페이로드에
+ * 실을 수 없다. generateStory는 브라우저에서만 실행되므로(아래 import.meta.server
+ * 가드) 모듈 스코프에 둬도 서버에서 요청 간에 섞이지 않는다.
+ */
+let storyAbort: AbortController | null = null
+let storyRequestId = 0
+
+/** 지역 데이터는 불변이라 state가 아니라 모듈에서 직접 읽는다 (SSR 페이로드도 줄어든다) */
+function findStage(regionId: number | null, stageNumber: number): GameStage | null {
+  const region = regionsDatabase.find(item => item.id === regionId)
+  return region?.stages.find(item => item.stage === stageNumber) ?? null
+}
 
 export const useGameStore = defineStore('game', {
   state: (): GameState => ({
     // 게임 진행 상태
-    gamePhase: 'menu' as GamePhase,
+    gamePhase: 'menu',
     selectedRegion: null,
     currentStageNumber: 1,
-    
-    // 플레이어 상태
+
+    // 플레이어 / 적
     player: {
-      hp: 100,
-      maxHp: 100,
-      name: '용사'
-    } as Player,
-    
-    // 적 상태 (현재 단계의 적)
-    enemy: {
-      hp: 80,
-      maxHp: 80,
-      name: '슬라임'
-    } as Enemy,
-    
-    // 게임 상태
+      name: GAME_CONFIG.player.name,
+      hp: GAME_CONFIG.player.maxHp,
+      maxHp: GAME_CONFIG.player.maxHp
+    },
+    enemy: { name: '슬라임', hp: 80, maxHp: 80 },
+
+    // 전투 상태
     isGameOver: false,
     isPlayerTurn: true,
     score: 0,
-    level: 1,
-    
-    // 현재 문제
-    currentQuestion: null as Word | null,
-    
-    // 지역 데이터베이스 (외부 파일에서 가져옴)
-    regionsDatabase: regionsDatabase as GameRegion[],
-    
-    // 현재 사용할 단어들
-    currentWords: [] as Word[],
 
-    // AI 스토리 생성 관련
-    isLoadingStory: false,
-    aiGeneratedStory: null as AIStoryData | null,
-    storyLoadingProgress: 0,
-    // AI 스토리 생성 상태 추적
-    aiStoryState: 'idle' as 'idle' | 'generating' | 'success' | 'failed'
+    // 현재 문제
+    currentQuestion: null,
+    currentChoices: [],
+    currentWords: [],
+
+    // AI 스토리
+    aiGeneratedStory: null,
+    storyState: 'idle'
   }),
-  
+
   getters: {
-    playerHpPercentage: (state) => (state.player.hp / state.player.maxHp) * 100,
-    enemyHpPercentage: (state) => (state.enemy.hp / state.enemy.maxHp) * 100,
-    isPlayerWin: (state) => state.enemy.hp <= 0,
-    isPlayerLose: (state) => state.player.hp <= 0,
-    currentChoices: (state) => {
-      if (!state.currentQuestion) return []
-      
-      const choices = [
-        state.currentQuestion.english,
-        ...state.currentQuestion.wrongAnswers
-      ]
-      
-      // 배열을 랜덤하게 섞기
-      return choices.sort(() => Math.random() - 0.5)
-    },
-    availableRegions: (state) => state.regionsDatabase,
-    currentRegion: (state) => {
-      return state.regionsDatabase.find(region => region.id === state.selectedRegion)
-    },
-    currentStage: (state) => {
-      const region = state.regionsDatabase.find(r => r.id === state.selectedRegion)
-      return region ? region.stages.find(s => s.stage === state.currentStageNumber) : null
-    },
-    isBossStage: (state) => state.currentStageNumber === 10,
-    progressPercentage: (state) => (state.currentStageNumber / 10) * 100,
-    
-    // AI 생성 스토리 또는 하드코딩된 스토리 반환
-    currentStoryData: (state) => {
-      // AI 스토리가 성공적으로 생성되었거나 생성 중이면 AI 스토리 사용
-      if ((state.aiStoryState === 'success' || state.aiStoryState === 'generating') && state.aiGeneratedStory) {
-        return state.aiGeneratedStory
-      }
-      
-      // AI 스토리 생성 중이지만 아직 데이터가 없다면 null 반환 (로딩 메시지 표시)
-      if (state.aiStoryState === 'generating' && !state.aiGeneratedStory) {
-        return null
-      }
-      
-      // AI 스토리 생성이 실패했거나 idle 상태라면 하드코딩된 스토리 사용
-      if (state.aiStoryState === 'failed' || state.aiStoryState === 'idle') {
-        const region = state.regionsDatabase.find(r => r.id === state.selectedRegion)
-        const stage = region ? region.stages.find(s => s.stage === state.currentStageNumber) : null
-        
-        return stage ? {
-          storyTitle: stage.storyTitle,
-          content: stage.content
-        } : null
-      }
-      
-      return null
+    playerHpPercentage: state => (state.player.hp / state.player.maxHp) * 100,
+    enemyHpPercentage: state => (state.enemy.hp / state.enemy.maxHp) * 100,
+    isPlayerWin: state => state.enemy.hp <= 0,
+
+    availableRegions: () => regionsDatabase,
+    currentRegion: state => regionsDatabase.find(item => item.id === state.selectedRegion),
+    currentStage: (state): GameStage | null =>
+      findStage(state.selectedRegion, state.currentStageNumber),
+
+    isBossStage: state => state.currentStageNumber === GAME_CONFIG.totalStages,
+    progressPercentage: state => (state.currentStageNumber / GAME_CONFIG.totalStages) * 100,
+    /** 화면에 표시하는 레벨 = 진행한 스테이지 */
+    level: state => state.currentStageNumber,
+
+    /** AI 스토리가 있으면 그것, 없으면 지역 데이터의 하드코딩 스토리 */
+    currentStoryData: (state): AIStoryData | null => {
+      if (state.aiGeneratedStory) return state.aiGeneratedStory
+      // 생성 중이고 아직 받은 조각이 없으면 로딩 화면을 보여준다
+      if (state.storyState === 'generating') return null
+
+      const stage = findStage(state.selectedRegion, state.currentStageNumber)
+      return stage ? { storyTitle: stage.storyTitle, content: stage.content } : null
     }
   },
-  
+
   actions: {
-    // 게임 페이즈 변경
-    setGamePhase(phase: GamePhase) {
-      this.gamePhase = phase
-    },
-    
-    // 지역 선택
-    async selectRegion(regionId: number) {
+    // ── 진행 흐름 ─────────────────────────────────────────────────────────
+    // 이 액션들은 상태만 바꾸고, 이동할 경로를 문자열로 돌려준다.
+    // 실제 라우팅은 화면(composables/useGameFlow)에서 한다.
+    // 스토어가 navigateTo를 직접 부르면 도메인 로직이 화면 구조에 묶여서
+    // 테스트가 어려워지고 SSR에서 예상치 못한 리다이렉트가 발생한다.
+
+    /** 지역을 골라 새 모험을 시작한다 */
+    startRegion(regionId: number): string {
       this.selectedRegion = regionId
       this.currentStageNumber = 1
+      this.score = 0
+      this.player.hp = this.player.maxHp
+      this.resetStory()
       this.gamePhase = 'story'
-      
-      // 🔧 AI 스토리 생성 시도 (성공/실패와 상관없이 다른 데이터는 로드)
-      try {
-        await this.generateAIStory()
-      } catch (error) {
-        // AI 생성 실패 시에만 하드코딩 스토리 사용
-        console.log('🔄 AI 스토리 생성 실패, 하드코딩 스토리 사용')
-      }
-      
       this.loadCurrentStage()
+      void this.generateStory()
+      return '/story'
     },
-    
-    // 현재 단계 로드
-    loadCurrentStage() {
-      const region = this.regionsDatabase.find(r => r.id === this.selectedRegion)
-      if (!region) return
-      
-      const stage = region.stages.find(s => s.stage === this.currentStageNumber)
+
+    /** 전투 시작 */
+    startBattle(): string {
+      // 이미 끝난 전투로 다시 들어오는 경우(적을 쓰러뜨린 뒤 스토리로 되돌아왔을 때 등)
+      // 적을 원래 상태로 되살린다. 이 보정이 없으면 첫 답을 내는 순간
+      // enemy.hp가 이미 0이라 곧바로 "클리어" 판정이 나버린다.
+      if (this.isGameOver || this.enemy.hp <= 0) {
+        this.loadCurrentStage()
+      }
+
+      this.gamePhase = 'battle'
+      this.isGameOver = false
+      this.nextQuestion()
+      return '/battle'
+    },
+
+    /** 스테이지 클리어 후 다음 단계로. 마지막 스테이지였다면 승리 화면으로 */
+    advanceStage(): string {
+      if (this.currentStageNumber >= GAME_CONFIG.totalStages) {
+        this.gamePhase = 'victory'
+        return '/victory'
+      }
+
+      this.currentStageNumber += 1
+      this.gamePhase = 'story'
+      this.resetStory()
+      this.loadCurrentStage({ heal: true })
+      void this.generateStory()
+      return '/story'
+    },
+
+    /** 같은 스테이지 재도전. 체력을 회복시켜 준다 */
+    retryCurrentStage(): string {
+      this.player.hp = this.player.maxHp
+      this.gamePhase = 'story'
+      this.loadCurrentStage()
+      return '/story'
+    },
+
+    /** 메인 메뉴로 (진행 상황 초기화) */
+    goToMenu(): string {
+      this.abortStoryGeneration()
+      this.$reset()
+      return '/'
+    },
+
+    /** 스테이지 데이터(단어/적)를 상태에 반영한다 */
+    loadCurrentStage(options: { heal?: boolean } = {}): void {
+      const stage = this.currentStage
       if (!stage) return
-      
+
       this.currentWords = [...stage.words]
       this.enemy = { ...stage.enemy }
-      
-      // 플레이어 HP 회복 (보스전은 제외)
-      if (this.currentStageNumber !== 10) {
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + 20)
+      this.isGameOver = false
+      this.isPlayerTurn = true
+      this.currentQuestion = null
+      this.currentChoices = []
+
+      if (options.heal && !this.isBossStage) {
+        this.player.hp = Math.min(
+          this.player.maxHp,
+          this.player.hp + GAME_CONFIG.healPerStage
+        )
       }
     },
-    
-    // AI 스토리 생성 (스트리밍 방식)
-    async generateAIStory() {
+
+    // ── 화면 진입 보정 (idempotent) ────────────────────────────────────────
+    // URL로 직접 들어와도 화면이 성립하도록 최소한만 채운다.
+    // 여러 번 호출해도 같은 결과가 나오므로 SSR/하이드레이션에서 안전하다.
+
+    ensureRunReady(): void {
+      if (!this.selectedRegion) this.selectedRegion = 1
+      if (this.currentStageNumber < 1) this.currentStageNumber = 1
+      if (this.currentWords.length === 0) this.loadCurrentStage()
+    },
+
+    ensureStoryReady(): void {
+      this.ensureRunReady()
+      this.gamePhase = 'story'
+    },
+
+    ensureBattleReady(): void {
+      this.ensureRunReady()
+      // 끝난 전투 상태로 /battle에 진입하면 적을 되살린다 (startBattle과 같은 이유)
+      if (this.isGameOver || this.enemy.hp <= 0) this.loadCurrentStage()
+      if (!this.currentQuestion) this.nextQuestion()
+      this.gamePhase = 'battle'
+    },
+
+    ensureVictoryReady(): void {
+      this.ensureRunReady()
+      if (this.currentStageNumber < GAME_CONFIG.totalStages) {
+        this.currentStageNumber = GAME_CONFIG.totalStages
+      }
+      if (this.player.hp <= 0) this.player.hp = 1
+      // isPlayerWin이 true여야 승리 화면의 버튼이 맞게 나온다.
+      // ensureRunReady가 적 체력을 되살릴 수 있으므로 반드시 그 뒤에 둔다.
+      this.enemy.hp = 0
+      this.isGameOver = true
+      this.gamePhase = 'victory'
+    },
+
+    ensureDefeatReady(): void {
+      this.ensureRunReady()
+      this.player.hp = 0
+      this.isGameOver = true
+      this.gamePhase = 'defeat'
+    },
+
+    // ── 전투 ──────────────────────────────────────────────────────────────
+
+    /** 새 문제를 뽑고 선택지를 섞어 상태에 저장한다 */
+    nextQuestion(): void {
+      const question = pickOne(this.currentWords)
+
+      if (!question) {
+        this.currentQuestion = null
+        this.currentChoices = []
+        return
+      }
+
+      this.currentQuestion = question
+      this.currentChoices = shuffle([question.english, ...question.wrongAnswers])
+      this.isPlayerTurn = true
+    },
+
+    /**
+     * 답 하나를 처리한다. 타이머나 화면 이동은 하지 않고 결과만 돌려준다.
+     * 연출 지연과 라우팅은 호출 측(useGameFlow)이 담당한다.
+     */
+    submitAnswer(choice: string): AnswerOutcome {
+      const question = this.currentQuestion
+
+      if (this.isGameOver || !this.isPlayerTurn || !question) {
+        return {
+          accepted: false,
+          correct: false,
+          correctAnswer: question?.english ?? '',
+          damage: 0,
+          result: 'continue'
+        }
+      }
+
+      const correct = choice === question.english
+      this.isPlayerTurn = false
+
+      let damage: number
+      if (correct) {
+        const range = GAME_CONFIG.damage.playerAttack
+        damage = randomInt(range.min, range.max)
+        this.enemy.hp = Math.max(0, this.enemy.hp - damage)
+        this.score += GAME_CONFIG.score.correctAnswer
+      } else {
+        const range = GAME_CONFIG.damage.enemyAttack
+        damage = randomInt(range.min, range.max)
+        this.player.hp = Math.max(0, this.player.hp - damage)
+      }
+
+      return {
+        accepted: true,
+        correct,
+        correctAnswer: question.english,
+        damage,
+        result: this.resolveRound()
+      }
+    },
+
+    /** 라운드 종료 판정. 점수 정산은 여기서 한 번만 일어난다 */
+    resolveRound(): RoundResult {
+      if (this.player.hp <= 0) {
+        this.isGameOver = true
+        this.gamePhase = 'defeat'
+        return 'defeated'
+      }
+
+      if (this.enemy.hp <= 0) {
+        this.isGameOver = true
+        this.score += GAME_CONFIG.score.stageClear
+
+        if (this.isBossStage) {
+          this.score += GAME_CONFIG.score.bossClear
+          this.gamePhase = 'victory'
+          return 'regionCleared'
+        }
+
+        return 'stageCleared'
+      }
+
+      return 'continue'
+    },
+
+    // ── AI 스토리 ─────────────────────────────────────────────────────────
+
+    /** 스테이지가 바뀔 때: 진행 중 요청을 취소하고 스토리를 비운다 */
+    resetStory(): void {
+      storyAbort?.abort()
+      storyAbort = null
+      storyRequestId += 1
+      this.aiGeneratedStory = null
+      this.storyState = 'idle'
+    },
+
+    /** 화면을 떠날 때: 요청만 끊고, 이미 받은 스토리는 남겨둔다 */
+    abortStoryGeneration(): void {
+      storyAbort?.abort()
+      storyAbort = null
+      storyRequestId += 1
+
+      if (this.storyState === 'generating') {
+        this.storyState = this.aiGeneratedStory?.content ? 'success' : 'failed'
+      }
+    },
+
+    /**
+     * AI 스토리를 스트리밍으로 받아온다.
+     *
+     * - AbortController: 이전 요청을 취소해 쓸데없는 토큰 소비를 막는다.
+     * - requestId: abort가 늦게 반영돼 응답이 도착해도 상태를 덮어쓰지 않게 한다.
+     * - 실패해도 throw하지 않는다. currentStoryData가 하드코딩 스토리로 폴백한다.
+     */
+    async generateStory(): Promise<void> {
+      // 서버 렌더링 중에는 호출하지 않는다.
+      // SSR은 하드코딩 스토리로 그리고, AI 생성은 브라우저에서 이어받는다.
+      if (import.meta.server || !this.selectedRegion) return
+
+      storyAbort?.abort()
+      const controller = new AbortController()
+      const requestId = ++storyRequestId
+      storyAbort = controller
+
+      const isStale = (): boolean => requestId !== storyRequestId
+
+      this.storyState = 'generating'
+      this.aiGeneratedStory = null
+
+      let title = ''
+      let content = ''
+
+      const applyEvent = (line: string): void => {
+        const raw = parseSseDataLine(line)
+        if (!raw) return
+
+        let payload: { type?: string; title?: string; content?: string; error?: string }
+        try {
+          payload = JSON.parse(raw)
+        } catch {
+          return
+        }
+
+        switch (payload.type) {
+          case 'title':
+            title = payload.title ?? ''
+            break
+          case 'content':
+            content += payload.content ?? ''
+            break
+          case 'complete':
+            title = payload.title || title
+            content = payload.content || content
+            break
+          case 'error':
+            throw new Error(payload.error ?? 'STORY_FAILED')
+          default:
+            return
+        }
+
+        this.aiGeneratedStory = {
+          storyTitle: title || `${this.currentStageNumber}단계`,
+          content
+        }
+      }
+
       try {
-        // 🔧 생성 상태로 변경 (빈 화면 표시)
-        this.aiStoryState = 'generating'
-        this.aiGeneratedStory = null
-
-        // 이전 맥락 생성
-        const previousContext = this.getPreviousStoryContext()
-        console.log('📝 이전 맥락:', previousContext)
-
-        // 🔧 현재 단계의 실제 적 이름 가져오기
-        const currentStage = this.currentStage
-        const actualEnemyName = currentStage?.enemy?.name
-        
-        // fetch를 사용한 스트리밍
         const response = await fetch('/api/generate-story-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             stageNumber: this.currentStageNumber,
-            regionId: this.selectedRegion,
-            previousContext,
-            actualEnemyName // 🔧 실제 게임에서 사용하는 적 이름 전달
-          })
+            regionId: this.selectedRegion
+          }),
+          signal: controller.signal
         })
 
-        if (!response.ok) {
-          throw new Error(`API 오류: ${response.status}`)
+        if (!response.ok || !response.body) {
+          throw new Error(`스토리 API 오류: ${response.status}`)
         }
 
-        const reader = response.body?.getReader()
-        if (!reader) {
-          throw new Error('스트림 리더를 가져올 수 없습니다')
-        }
-
-        let streamingTitle = ''
-        let streamingContent = ''
+        const reader = response.body.getReader()
+        const lineReader = createStreamLineReader()
 
         try {
           while (true) {
             const { done, value } = await reader.read()
-            
-            if (done) {
-              break
-            }
-
-            // 청크 디코딩
-            const chunk = new TextDecoder().decode(value)
-            const lines = chunk.split('\n')
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                
-                if (data.trim() === '') continue
-
-                try {
-                  const parsed = JSON.parse(data)
-
-                  switch (parsed.type) {
-                    case 'title':
-                      streamingTitle = parsed.title
-                      break
-                      
-                    case 'content':
-                      streamingContent += parsed.content
-                      // 실시간으로 스토리 업데이트
-                      this.aiGeneratedStory = {
-                        storyTitle: streamingTitle || `${this.currentStageNumber}단계`,
-                        content: streamingContent
-                      }
-                      break
-                      
-                    case 'complete':
-                      this.aiGeneratedStory = {
-                        storyTitle: parsed.title || streamingTitle || `${this.currentStageNumber}단계`,
-                        content: parsed.content || streamingContent
-                      }
-                      // 🔧 성공 상태로 변경
-                      this.aiStoryState = 'success'
-                      return this.aiGeneratedStory
-                      
-                    case 'error':
-                      throw new Error(parsed.error)
-                  }
-                } catch (parseError) {
-                  // JSON 파싱 오류는 무시하고 계속 진행
-                }
-              }
-            }
+            if (done) break
+            // 이미 다음 요청이 시작됐다면 이 응답은 버린다
+            if (isStale()) return
+            for (const line of lineReader.push(value)) applyEvent(line)
           }
+          for (const line of lineReader.flush()) applyEvent(line)
         } finally {
           reader.releaseLock()
         }
 
-      } catch (error) {
-        // 🔧 실패 상태로 변경 (하드코딩 스토리 사용)
-        this.aiStoryState = 'failed'
-        this.aiGeneratedStory = null
-        throw error // 상위에서 catch하도록 에러 전파
-      }
-    },
+        if (isStale()) return
 
-    // 이전 스토리 맥락 생성
-    getPreviousStoryContext(): string {
-      if (this.currentStageNumber <= 1) return '새로운 모험의 시작입니다.'
-      
-      const region = this.regionsDatabase.find(r => r.id === this.selectedRegion)
-      if (!region) return ''
-
-      const previousStage = region.stages.find(s => s.stage === this.currentStageNumber - 1)
-      if (!previousStage) return ''
-
-      return `이전 단계에서 ${previousStage.enemy.name} 적을 물리치고 ${previousStage.storyTitle} 스토리를 지나왔습니다.`
-    },
-    
-    // 다음 단계로 진행 (AI 스토리 생성 포함)
-    async nextStage() {
-      if (this.currentStageNumber < 10) {
-        this.currentStageNumber++
-        this.gamePhase = 'story'
-        
-        // 🔧 먼저 새로운 단계 데이터 로드 (적 정보 포함)
-        this.loadCurrentStage()
-        
-        // 🔧 스토리 페이지로 이동
-        navigateTo('/story')
-        
-        // 🔧 AI 스토리 생성 시도 (실패 시 하드코딩 사용)
-        try {
-          await this.generateAIStory()
-        } catch (error) {
-          // AI 스토리 생성 실패 시 하드코딩 스토리 사용
-        }
-      } else {
-        // 10단계 완료 시 승리 화면으로
-        this.gamePhase = 'victory'
-        navigateTo('/victory')
-      }
-    },
-    
-    // 전투 시작
-    startBattle() {
-      this.gamePhase = 'battle'
-      this.isGameOver = false
-      this.isPlayerTurn = true
-      this.generateNewQuestion()
-      
-      // 🔧 전투 페이지로 이동
-      navigateTo('/battle')
-    },
-    
-    // 메인 메뉴로 돌아가기
-    goToMenu() {
-      this.gamePhase = 'menu'
-      this.selectedRegion = null
-      this.currentStageNumber = 1
-      this.isGameOver = false
-      this.score = 0
-      this.player.hp = this.player.maxHp
-      this.aiGeneratedStory = null
-      this.isLoadingStory = false
-      // 🔧 AI 스토리 상태 초기화
-      this.aiStoryState = 'idle'
-      
-      // 🔧 메인 페이지로 이동
-      navigateTo('/')
-    },
-    
-    // 스토리로 돌아가기
-    goToStory() {
-      this.gamePhase = 'story'
-      
-      // 🔧 스토리 페이지로 이동
-      navigateTo('/story')
-    },
-    
-    // 새로운 문제 생성
-    generateNewQuestion() {
-      if (this.currentWords.length === 0) return
-      const randomIndex = Math.floor(Math.random() * this.currentWords.length)
-      this.currentQuestion = this.currentWords[randomIndex]
-    },
-    
-    // 답안 선택 처리
-    selectAnswer(selectedAnswer: string) {
-      if (!this.isPlayerTurn || this.isGameOver) return
-      
-      const isCorrect = selectedAnswer === this.currentQuestion?.english
-      
-      if (isCorrect) {
-        // 정답: 적 공격
-        this.attackEnemy()
-        this.score += 10
-      } else {
-        // 오답: 플레이어가 공격받음
-        this.attackPlayer()
-      }
-      
-      // 게임 종료 체크
-      this.checkGameOver()
-      
-      if (!this.isGameOver) {
-        // 다음 문제 생성
-        setTimeout(() => {
-          this.generateNewQuestion()
-          this.isPlayerTurn = true
-        }, 1500)
-      }
-    },
-    
-    // 적 공격
-    attackEnemy() {
-      const damage = Math.floor(Math.random() * 25) + 15 // 15-40 랜덤 데미지
-      this.enemy.hp = Math.max(0, this.enemy.hp - damage)
-      this.isPlayerTurn = false
-    },
-    
-    // 플레이어 공격받기
-    attackPlayer() {
-      const damage = Math.floor(Math.random() * 20) + 10 // 10-30 랜덤 데미지
-      this.player.hp = Math.max(0, this.player.hp - damage)
-      this.isPlayerTurn = false
-    },
-    
-    // 게임 종료 체크
-    checkGameOver() {
-      if (this.player.hp <= 0) {
-        this.isGameOver = true
-        this.gamePhase = 'defeat'
-        // 🔧 패배 시 패배 페이지로 이동
-        setTimeout(() => {
-          navigateTo('/defeat')
-        }, 1000)
-      } else if (this.enemy.hp <= 0) {
-        this.isGameOver = true
-        this.score += 50 // 일반 승리 보너스
-        
-        if (this.currentStageNumber < 10) {
-          // 다음 단계로 진행 (짧은 딜레이로 UI 피드백 허용)
-          setTimeout(() => {
-            this.nextStage()
-          }, 1500)
+        if (content) {
+          this.storyState = 'success'
         } else {
-          // 10단계 완료 시 승리 화면
-          this.gamePhase = 'victory'
-          this.score += 100 // 보스 클리어 보너스
-          setTimeout(() => {
-            navigateTo('/victory')
-          }, 2000)
+          this.storyState = 'failed'
+          this.aiGeneratedStory = null
         }
+      } catch (error) {
+        // 취소된 요청이거나 이미 낡은 요청이면 조용히 끝낸다
+        if (isStale() || controller.signal.aborted) return
+
+        console.warn('[story] AI 스토리 생성 실패, 기본 스토리로 진행합니다:', error)
+        this.storyState = 'failed'
+        this.aiGeneratedStory = null
+      } finally {
+        if (storyAbort === controller) storyAbort = null
       }
     }
   }
-}) 
+})

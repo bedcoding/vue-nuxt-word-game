@@ -3,14 +3,14 @@
     <!-- 플레이어 캐릭터 (왼쪽) -->
     <div class="flex justify-center items-center">
       <div class="relative">
-        <SharedCharacter 
+        <SharedCharacter
           :character="gameStore.player"
           :is-player="true"
           :is-attacking="isPlayerAttacking"
         />
       </div>
     </div>
-    
+
     <!-- 문제 패널 (중앙) -->
     <div class="lg:col-span-1">
       <SharedQuestionPanel
@@ -20,15 +20,14 @@
         :is-game-over="gameStore.isGameOver"
         :score="gameStore.score"
         :level="gameStore.level"
-        :is-player-win="gameStore.isPlayerWin"
         @select-answer="handleAnswer"
       />
     </div>
-    
+
     <!-- 적 캐릭터 (오른쪽) -->
     <div class="flex justify-center items-center">
       <div class="relative">
-        <SharedCharacter 
+        <SharedCharacter
           :character="gameStore.enemy"
           :is-player="false"
           :is-attacking="isEnemyAttacking"
@@ -39,12 +38,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, onScopeDispose, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { useGameFlow } from '@/composables/useGameFlow'
+
+const ATTACK_ANIMATION_MS = 500
 
 const gameStore = useGameStore()
+const flow = useGameFlow()
 
-// 반응형 상태
 const isPlayerAttacking = ref(false)
 const isEnemyAttacking = ref(false)
 
@@ -52,56 +54,63 @@ const emit = defineEmits<{
   battleLog: [message: string]
 }>()
 
-// 컴포넌트 마운트 시 초기화
+// 공격 애니메이션 타이머도 화면이 사라질 때 정리한다
+let attackTimer: ReturnType<typeof setTimeout> | null = null
+onScopeDispose(() => {
+  if (attackTimer) clearTimeout(attackTimer)
+})
+
+const playAttackAnimation = (target: 'player' | 'enemy'): void => {
+  if (attackTimer) clearTimeout(attackTimer)
+
+  isPlayerAttacking.value = target === 'player'
+  isEnemyAttacking.value = target === 'enemy'
+
+  attackTimer = setTimeout(() => {
+    isPlayerAttacking.value = false
+    isEnemyAttacking.value = false
+    attackTimer = null
+  }, ATTACK_ANIMATION_MS)
+}
+
 onMounted(() => {
   emit('battleLog', '🎯 전투가 시작되었습니다!')
   emit('battleLog', '📚 한글 단어에 맞는 영어 단어를 선택하세요!')
   emit('battleLog', `🛡️ ${gameStore.player.name} VS ${gameStore.enemy.name} 👾`)
 })
 
-// 답안 선택 처리
-const handleAnswer = (selectedAnswer: string) => {
-  const isCorrect = selectedAnswer === gameStore.currentQuestion?.english
-  
-  if (isCorrect) {
-    // 정답 처리
-    isPlayerAttacking.value = true
-    emit('battleLog', `✅ 정답! "${selectedAnswer}"`)
-    emit('battleLog', `⚔️ ${gameStore.player.name} → ${gameStore.enemy.name} 공격!`)
-    
-    setTimeout(() => {
-      isPlayerAttacking.value = false
-    }, 500)
+/**
+ * 답 제출. 결과를 동기적으로 받아서 로그를 찍는다.
+ * 이전에는 setTimeout으로 스토어 상태를 다시 들여다보며 승패를 추측했는데,
+ * 이제는 결과 값이 그대로 넘어오므로 타이밍에 의존하지 않는다.
+ */
+const handleAnswer = (choice: string): void => {
+  const enemyName = gameStore.enemy.name
+  const playerName = gameStore.player.name
+
+  const outcome = flow.answer(choice)
+  if (!outcome.accepted) return
+
+  if (outcome.correct) {
+    playAttackAnimation('player')
+    emit('battleLog', `✅ 정답! "${choice}"`)
+    emit('battleLog', `⚔️ ${playerName} → ${enemyName} 공격!`)
   } else {
-    // 오답 처리
-    isEnemyAttacking.value = true
-    emit('battleLog', `❌ 틀렸습니다! 정답은 "${gameStore.currentQuestion?.english}"`)
-    emit('battleLog', `💥 ${gameStore.enemy.name} → ${gameStore.player.name} 공격!`)
-    
-    setTimeout(() => {
-      isEnemyAttacking.value = false
-    }, 500)
+    playAttackAnimation('enemy')
+    emit('battleLog', `❌ 틀렸습니다! 정답은 "${outcome.correctAnswer}"`)
+    emit('battleLog', `💥 ${enemyName} → ${playerName} 공격!`)
   }
-  
-  // 게임 스토어의 답안 선택 처리
-  gameStore.selectAnswer(selectedAnswer)
-  
-  // 게임 종료 체크 (라우팅은 게임 스토어에서 처리)
-  setTimeout(() => {
-    if (gameStore.isGameOver) {
-      // 🔧 승리 판정을 enemy.hp로 직접 체크 (타이밍 문제 방지)
-      if (gameStore.enemy.hp <= 0) {
-        emit('battleLog', '🎉 승리! 모든 적을 물리쳤습니다!')
-        if (gameStore.currentStageNumber < 10) {
-          emit('battleLog', '🚀 다음 단계로 진행합니다!')
-        } else {
-          emit('battleLog', '👑 모든 단계를 완료했습니다!')
-        }
-      } else if (gameStore.player.hp <= 0) {
-        emit('battleLog', '💀 패배 💀')
-      }
-      // 🔧 라우팅은 게임 스토어의 checkGameOver에서 처리하므로 여기서는 제거
-    }
-  }, 500) // 더 빠른 피드백
+
+  switch (outcome.result) {
+    case 'stageCleared':
+      emit('battleLog', '🎉 승리! 다음 단계로 진행합니다!')
+      break
+    case 'regionCleared':
+      emit('battleLog', '👑 모든 단계를 완료했습니다!')
+      break
+    case 'defeated':
+      emit('battleLog', '💀 패배 💀')
+      break
+  }
 }
-</script> 
+</script>

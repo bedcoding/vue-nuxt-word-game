@@ -1,7 +1,7 @@
 <template>
   <div>
     <h2 class="text-3xl font-bold text-white text-center mb-8">지역 선택</h2>
-    
+
     <!-- 지역 카드들 -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
       <MainRegionCard
@@ -12,8 +12,8 @@
         @select="selectRegion"
       />
     </div>
-    
-    <!-- 지역 선택 버튼 -->
+
+    <!-- 모험 시작 버튼 -->
     <div class="text-center">
       <MainStartButton
         :selected-region-id="selectedRegionId"
@@ -26,20 +26,20 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { useGameFlow } from '@/composables/useGameFlow'
 
 const gameStore = useGameStore()
+const flow = useGameFlow()
+
 const selectedRegionId = ref<number | null>(null)
 
-// 지역 선택
 const selectRegion = (regionId: number): void => {
   selectedRegionId.value = regionId
 }
 
-// 모험 시작
-const startAdventure = () => {
-  if (selectedRegionId.value) {
-    gameStore.selectRegion(selectedRegionId.value)
-    navigateTo('/story')
-  }
+// 상태 전이는 스토어, 화면 이동은 useGameFlow가 담당한다
+const startAdventure = (): void => {
+  if (selectedRegionId.value === null) return
+  void flow.startRegion(selectedRegionId.value)
 }
-</script> 
+</script>

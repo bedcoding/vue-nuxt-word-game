@@ -7,7 +7,10 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@pinia/nuxt": "^0.11.0",
@@ -17,6 +20,9 @@
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@nuxtjs/tailwindcss": "^7.0.0-beta.0"
+    "@nuxtjs/tailwindcss": "^7.0.0-beta.0",
+    "typescript": "~5.9",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.11"
   }
 }
