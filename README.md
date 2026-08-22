@@ -29,7 +29,8 @@ Vue.js 3, Nuxt.js 3, Pinia를 활용한 인터랙티브 학습 게임 프로젝�
 - **Vue.js 3** - 템플릿 문법으로 게임 UI 상태 표현이 React보다 직관적이어서 선택함
 - **Nuxt.js 3** - Vue.js 기반 풀스택 프레임워크 (React 생태계의 next.js랑 유사함)
 - **Pinia** - 상태 관리 라이브러리
-- **Tailwind CSS** - `<style scoped>` 태그에는 애니메이션을 넣고, 정적 스타일은 Tailwind로 처리 (역할 분담)
+- **Tailwind CSS v4** - `<style scoped>` 태그에는 애니메이션을 넣고, 정적 스타일은 Tailwind로 처리 (역할 분담).
+  `@nuxtjs/tailwindcss` 모듈 대신 `@tailwindcss/vite` 플러그인 + CSS 진입점(`assets/css/tailwind.css`)만 쓴다 — v4용 모듈 7.x 라인이 계속 beta에 머물러 있고, Nuxt 3/4 중 어느 쪽을 쓰느냐에 따라 지원 버전이 강제로 갈리기 때문
 - **TypeScript** - 타입 안정성 확보 (`yarn typecheck`로 vue-tsc 검사)
 - **Vitest** - 스토어 상태 전이 / 보상 계산 / SSE 파싱 유닛 테스트
 
@@ -62,6 +63,8 @@ Vue.js 3, Nuxt.js 3, Pinia를 활용한 인터랙티브 학습 게임 프로젝�
 │   │   ├── 📄 origin.ts    # Origin 화이트리스트 / 클라이언트 IP
 │   │   └── 📄 rateLimit.ts # 레이트리밋
 │   └── 📄 tsconfig.json    # 서버 TypeScript 설정
+├── 📁 assets/css/          # 전역 스타일
+│   └── 📄 tailwind.css     # Tailwind v4 진입점 (@import "tailwindcss")
 ├── 📁 constants/           # 게임 밸런스 수치 (단일 진실 원천)
 │   └── 📄 game.config.ts   # 스테이지 수 / 보상 / 데미지 / 연출 지연
 ├── 📁 composables/         # 재사용 로직 (Nuxt 자동 임포트)

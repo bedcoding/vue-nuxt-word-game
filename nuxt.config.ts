@@ -1,8 +1,18 @@
+import tailwindcss from '@tailwindcss/vite'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
-  modules: ['@pinia/nuxt', '@nuxtjs/tailwindcss'],
+  modules: ['@pinia/nuxt'],
+
+  // Tailwind v4는 Vite 플러그인 + CSS 진입점만으로 동작한다.
+  // @nuxtjs/tailwindcss 모듈은 쓰지 않는다 — v4용 7.x 라인이 계속 beta에
+  // 머물러 있고, Nuxt 3/4 중 어느 쪽을 쓰느냐에 따라 강제로 버전이 갈린다.
+  css: ['~/assets/css/tailwind.css'],
+  vite: {
+    plugins: [tailwindcss()]
+  },
 
   app: {
     head: {

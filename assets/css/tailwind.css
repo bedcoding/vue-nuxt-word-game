@@ -1,0 +1,12 @@
+/*
+ * Tailwind CSS v4 진입점.
+ *
+ * v4부터는 별도 설정 파일(tailwind.config.js) 없이 CSS에서 직접 불러온다.
+ * 유틸리티로 쓸 클래스는 자동 소스 감지로 프로젝트 파일에서 찾아내지만,
+ * Nuxt는 빌드 루트가 .nuxt/ 아래로 잡힐 수 있어 스캔 대상을 명시해 둔다.
+ */
+@import "tailwindcss";
+
+@source "../../app.vue";
+@source "../../components";
+@source "../../pages";
